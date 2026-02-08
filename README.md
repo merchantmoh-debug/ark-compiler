@@ -112,5 +112,29 @@ This technology is protected by **US Patent Application #63/935,467**.
 
 ---
 
+## 🌌 The Sovereign Ecosystem
+
+Ark is the legislative core of a broader Sovereign Stack. To build a complete autonomous agent, you need the Body, the Mind, and the Law.
+
+| Component | Role | Status | Repository |
+| :--- | :--- | :--- | :--- |
+| **Ark** | **The Law (Runtime)** | **ACTIVE** | [ark-compiler](https://github.com/merchantmoh-debug/ark-compiler) |
+| **Moonlight** | **The Body (Reflexes)** | **PRODUCTION** | [moonlight-kernel](https://github.com/merchantmoh-debug/moonlight-kernel) |
+| **Remember-Me** | **The Mind (Memory)** | **V2 LEGACY** | [Remember-Me-AI](https://github.com/merchantmoh-debug/Remember-Me-AI) |
+
+> *"Ark defines the rules. Moonlight executes the motion. Remember-Me retains the history."*
+
+---
+
+## 🤝 Support the Architect
+
+This infrastructure is built by **one person** for the sovereign individual.
+If you value independence from the cloud, support the mission:
+
+*   **Ko-fi:** [ko-fi.com/merchantmohdebug](https://ko-fi.com/merchantmohdebug)
+*   **Commercial Inquiries:** [merchantmoh@sovereign-systems.ca](mailto:merchantmoh@sovereign-systems.ca)
+
+---
+
 *"We do not ask for freedom. We build it."*
 — **Mohamad Al-Zawahreh**, Architect of Ark.
