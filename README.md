@@ -109,8 +109,7 @@ Invoke the AI directly from the language.
 
 | Ark Version | Rust Toolchain | Python Bridge | Google Model |
 | :--- | :--- | :--- | :--- |
-| **v1.0 (Current)** | `1.85+` | `3.12+` | `gemini-2.5-flash-lite` |
-| **v0.9 (Legacy)** | `1.80+` | `3.10+` | `gemini-1.5-flash` |
+| **v1.0 (Sovereign)** | `1.80+` | `3.10+` | `Any (Gemini 2.0+, DeepSeek, OpenAI, Local)` |
 
 ---
 
