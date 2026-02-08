@@ -1,72 +1,148 @@
 # The Ark-1 Programmer's Field Manual
 
-**Welcome to the Ark.**
-Ark-1 is a sovereign, distinct programming language designed for **verifiable computing**. Unlike Python or JavaScript, every piece of Ark code is hashed (Content-Addressable) and executed in a totally isolated WebAssembly runtime.
-
-This manual will teach you how to think in Ark.
-
-## 1. The Philosophy: Code is Logic
-Ark is a **Lisp-like** language. This means:
-1.  **Everything is a List**: `(function arg1 arg2)`.
-2.  **Prefix Notation**: Operations come first. `1 + 2` is `(+ 1 2)`.
-3.  **Strictly Typed (Under the Hood)**: While the syntax feels dynamic, the runtime enforces strict ownership logic (Linear Types).
-
-> [!TIP]
-> **Try It Live**: All examples below can be typed directly into the [Live Demo](https://merchantmoh-debug.github.io/ark-compiler/).
+**Version:** 1.0 (Sovereign Edition)
+**Author:** Mohamad Al-Zawahreh
+**License:** AGPLv3
 
 ---
 
-## 2. Basic Forms
+## Preface: The Sovereign Philosophy
 
-### Printing
-The classic Hello World.
-```scheme
-(print "Hello Ark")
-```
+Welcome to the Ark.
 
-### Arithmetic
-Math uses prefix notation. It removes ambiguity (no order of operations confusion).
+You are about to learn **Ark-1**, a language designed not for convenience, but for **Sovereignty**.
+In a world of black-box AI and rental computing, Ark is a return to first principles.
+
+### The Three Laws of Ark
+1.  **Code is Data:** Every program is a Merkle Tree (MAST). Code is content-addressable and immutable.
+2.  **State is Explicit:** There is no hidden garbage collection magic. You own your memory.
+3.  **Execution is Verifiable:** The runtime is deterministic. If it runs on your machine, it runs on Mars.
+
+This manual will take you from a blank slate to building self-replicating logic.
+
+---
+
+## Chapter 1: The Environment
+
+Before we write code, we must know where to run it.
+Ark runs in a secure **WebAssembly Runtime**.
+
+### The Sovereign Site
+The easiest way to learn is the [Certified Browser Terminal](https://merchantmoh-debug.github.io/ark-compiler/).
+- **The Input:** A standard command line.
+- **The Engine:** A pure WASM blob executing your logic client-side. Nothing is sent to a server (unless you ask it to).
+
+**Try it now:**
+Open the terminal and verify the system is live.
 ```scheme
-(print (+ 10 20))       ;; Prints 30
-(print (* 5 (+ 2 3)))   ;; Prints 25 -> 5 * (2 + 3)
+(print "System Online")
 ```
 
 ---
 
-## 3. Variables (`let`)
-Variables in Ark are immutable by default in some contexts, but `let` binds a value to a name in the current scope.
+## Chapter 2: Syntax & Structure
+
+Ark is a **Lisp-dialect**. If you have used Scheme or Clojure, this will feel familiar. If you come from Python or C++, shift your mindset.
+
+### S-Expressions
+Everything in Ark is a list. A list is wrapped in parentheses `(...)`.
+The first item in the list is the **Function**, and the rest are **Arguments**.
+
+**Python/C Style:**
+`function(arg1, arg2)`
+
+**Ark Style:**
+`(function arg1 arg2)`
+
+### Prefix Notation
+Math follows the same rule. The operator comes first.
 
 ```scheme
-(let x 10)
+(+ 10 20)      ;; 10 + 20
+(* 5 5)        ;; 5 * 5
+(- 100 1)      ;; 100 - 1
+```
+
+### Nesting
+You can nest lists as deep as you like.
+```scheme
+(* 10 (+ 5 5)) ;; 10 * (5 + 5) -> 100
+```
+
+---
+
+## Chapter 3: primitive Types
+
+Ark-1 supports a strict set of primitives.
+
+### Integers
+64-bit signed integers.
+`1`, `42`, `-99`
+
+### Strings
+UTF-8 text strings, enclosed in double quotes.
+`"Hello"`
+`"Sovereign integrity"`
+
+### Booleans
+Truth values.
+`true`
+`false`
+
+**Type Checking:**
+The runtime enforces types strictly. You cannot add a String to an Integer.
+```scheme
+(+ "Hello" 10) ;; ERROR: Type Mismatch
+```
+
+---
+
+## Chapter 4: Variables & Scope
+
+Data is stored in **Variables**.
+Use the `let` keyword to bind a value to a name.
+
+```scheme
+(let x 100)
 (print x)
-
-(let y (* x 2))
-(print y)
 ```
+
+### Re-binding
+You can re-use names in *new* scopes or sequential statements, effectively "updating" the variable from the programmer's perspective.
+
+```scheme
+(let x 1)
+(let x (+ x 1)) ;; x is now 2
+(print x)
+```
+
+### Scope
+Variables defined inside a block (like an `if` or `fn`) do not exist outside it.
 
 ---
 
-## 4. Logic and Control Flow (`if`)
-Ark uses conditional expressions. An `if` statement evaluates a condition. If true, it executes the first block. If false, the second.
+## Chapter 5: Control Flow
 
-### Syntax
-`(if condition then_block else_block)`
+Logic requires decision making.
 
-### Examples
+### If-Expression
+The `if` form evaluates a condition. If `true`, it runs the first block. If `false`, the second.
+
+**Syntax:** `(if condition then-expression else-expression)`
+
 ```scheme
-(if (< 10 20)
-    (print "Math is Real")
-    (print "Logic is Broken")
+(let power 9000)
+
+(if (> power 8000)
+    (print "It's over 8000!")
+    (print "Needs more training")
 )
 ```
 
----
+### While-Loop
+To repeat an action, use `while`. This requires a concept of "mutable" state or re-binding in the current simple shell.
 
-## 5. Loops (`while`)
-The `while` loop repeats a body of code as long as a condition is true.
-
-> [!NOTE]
-> In the current web demo version, be careful with infinite loops!
+**Syntax:** `(while condition body...)`
 
 ```scheme
 (let i 0)
@@ -75,27 +151,75 @@ The `while` loop repeats a body of code as long as a condition is true.
     (let i (+ i 1))
 )
 ```
+*> Warning: In the browser, an infinite loop will freeze your tab. Ensure your condition eventually becomes false.*
 
 ---
 
-## 6. Functions (`fn`)
-Defining your own logic is the core of sovereign computing. In Ark, you define functions with `fn`.
+## Chapter 6: Functions
 
-### Syntax
-`(fn name (arg1 arg2) body...)`
+The heart of Ark is the Function. You define new behavior using `fn`.
 
-### Example: The Adder
+**Syntax:** `(fn name (args...) body...)`
+
+### Defining a Function
+Let's create a function that squares a number.
+
 ```scheme
-(fn add (a b)
-    (+ a b)
+(fn square (x)
+    (* x x)
 )
 
-(print (add 10 20))
+(print (square 5)) ;; Prints 25
 ```
 
-### Example: Recursive Factorial
-Ark supports recursion (functions calling themselves).
+### Multi-Argument Functions
+```scheme
+(fn area (width height)
+    (* width height)
+)
 
+(print (area 10 5)) ;; Prints 50
+```
+
+### The Implicit Return
+The **last expression** in a function body is automatically returned. You do not need a strict `return` keyword (though `return` exists for early exit).
+
+---
+
+## Chapter 7: The Standard Library
+
+Ark comes with a compact standard library.
+
+### Math
+- `+` : Addition
+- `-` : Subtraction
+- `*` : Multiplication
+- `/` : Division (Integer)
+
+### Comparison
+- `<` : Less Than
+- `>` : Greater Than
+- `=` : Equal To
+
+### I/O
+- `print` : Outputs text to the console.
+
+### The Neuro-Link (v1.0)
+Ark is an **AI-Native** language. It has a built-in intrinsic to communicate with the Sovereign Mind (LLM).
+
+```scheme
+(ask_ai "What is the capital of Mars?")
+```
+*> Note: This requires the local bridge to be active. In the browser demo, this serves as a placeholder for future WebLLM integration.*
+
+---
+
+## Chapter 8: Advanced Concepts
+
+### Recursion
+Ark functions can call themselves. This is the primary way to express complex iteration without loops.
+
+**Factorial Example:**
 ```scheme
 (fn factorial (n)
     (if (< n 2)
@@ -104,17 +228,32 @@ Ark supports recursion (functions calling themselves).
     )
 )
 
-(print (factorial 5)) ;; Prints 120
+(print (factorial 5)) ;; 120
 ```
+
+### The Stack
+Ark uses a traditional call stack. Each function call pushes a new frame. Deep recursion may overflow the stack if not careful (Maximum depth is currently runtime-dependent).
+
+### Content-Addressability (MAST)
+Under the hood, your function `factorial` is not stored as text. It is parsed into a **Merkle Tree**.
+- The body of the function has a hash (SHA-256).
+- The function definition points to that hash.
+- This means if two people write the exact same logic, they generate the exact same cryptographic hash.
 
 ---
 
-## 7. The Sovereign Future
-You have learned the basics of Ark-1.
-- You understand **S-Expressions**.
-- You can control flow with **If** and **While**.
-- You can encapsulate logic with **Fn**.
+## Appendix A: Keyword Reference
 
-This is just the beginning. The Ark compiler is designed to evolve into a self-hosting system where the code you write is mathematically proven to be correct.
+| Keyword | Description | Example |
+| :--- | :--- | :--- |
+| `let` | Bind a variable | `(let x 10)` |
+| `fn` | Define a function | `(fn add (a b) ...)` |
+| `if` | Conditional logic | `(if (< x 10) ...)` |
+| `while` | Loop execution | `(while (< i 10) ...)` |
+| `print` | Output to console | `(print "Hello")` |
+| `ask_ai`| Query LLM | `(ask_ai "Prompt")` |
+
+---
 
 **End of Manual.**
+*Sovereign Systems &copy; 2026*
