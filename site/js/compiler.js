@@ -81,6 +81,46 @@ export class ArkCompiler {
                 };
             }
 
+            if (head.val === 'while') {
+                // (while cond body...)
+                const body = ast.slice(2).map(node => this.stmt(node));
+                return {
+                    "Statement": {
+                        "While": {
+                            "condition": this.expr(ast[1]),
+                            "body": body
+                        }
+                    }
+                };
+            }
+
+            if (head.val === 'fn') {
+                // (fn name (a b) body...)
+                const name = ast[1].val;
+                const argsRaw = ast[2]; 
+                const bodyStmts = ast.slice(3).map(node => this.stmt(node));
+                
+                // Wrap body in a Block if multiple statements, or just use the sequence
+                // The runtime expects a MastNode as the body. 
+                // We'll wrap the list of statements in a Block statement.
+                const bodyBlock = { "Block": bodyStmts };
+                const bodyMast = {
+                    "hash": "0000000000000000000000000000000000000000000000000000000000000000",
+                    "content": { "Statement": bodyBlock }
+                };
+
+                const inputs = argsRaw.map(arg => [arg.val, { "Shared": "Any" }]);
+
+                return {
+                    "Function": {
+                        "name": name,
+                        "inputs": inputs,
+                        "output": { "Shared": "Any" },
+                        "body": bodyMast
+                    }
+                };
+            }
+
             // Default: Function Call
             // (add 1 2)
             return {
