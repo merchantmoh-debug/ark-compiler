@@ -124,6 +124,14 @@ Ark is the legislative core of a broader Sovereign Stack. To build a complete au
 
 > *"Ark defines the rules. Moonlight executes the motion. Remember-Me retains the history."*
 
+### The Unified Stack
+In the Sovereign Architecture:
+1.  **Moonlight** provides the raw kinetic speed (Wasm/Rust).
+2.  **Ark** replaces the "Python Glue" as the deterministic orchestrator.
+3.  **Remember-Me** is the persistent vector store contacted via the Neuro-Bridge.
+
+Ark does not defeat Moonlight; it **commands** it.
+
 ---
 
 ## 🤝 Support the Architect
