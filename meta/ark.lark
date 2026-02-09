@@ -1,20 +1,32 @@
 // Ark-1: The Kinetic Grammar (Infix/Algol)
 // Matches meta/factorial.ark
 
-start: statement+
+start: (statement | function_def | class_def)+
 
 ?statement: assignment
           | flow_stmt
           | expression
 
-assignment: IDENTIFIER ":=" expression
-flow_stmt: if_stmt | while_stmt
+// --- Definitions ---
+function_def: "func" IDENTIFIER "(" [param_list] ")" "{" block "}"
+param_list: IDENTIFIER ("," IDENTIFIER)*
+class_def: "class" IDENTIFIER "{" function_def* "}"
+
+// --- Control Flow ---
+flow_stmt: if_stmt | while_stmt | return_stmt
+return_stmt: "return" expression
 
 if_stmt: "if" expression "{" block "}" ["else" "{" block "}"]
 while_stmt: "while" expression "{" block "}"
 
 block: statement*
 
+// --- Assignments ---
+?assignment: assign_var | assign_attr
+assign_var: IDENTIFIER ":=" expression
+assign_attr: atom "." IDENTIFIER ":=" expression
+
+// --- Expressions ---
 ?expression: comparison
 
 ?comparison: sum
@@ -30,17 +42,19 @@ block: statement*
         | product "*" atom -> mul
         | product "/" atom -> div
 
-?atom: NUMBER -> number
-     | STRING -> string
-     | IDENTIFIER -> var
-     | function_call
-     | "(" expression ")"
+?atom: primary
+     | atom "." IDENTIFIER -> get_attr
+     | atom "(" [expr_list] ")" -> call_expr
 
-function_call: IDENTIFIER "(" [expr_list] ")"
+?primary: NUMBER -> number
+        | STRING -> string
+        | IDENTIFIER -> var
+        | "(" expression ")"
+
 expr_list: expression ("," expression)*
 
 // Tokens
-IDENTIFIER: /[a-zA-Z_][a-zA-Z0-9_\.]*/
+IDENTIFIER: /[a-zA-Z_][a-zA-Z0-9_]*/
 NUMBER: /-?\d+/
 STRING: /".*?"/
 
