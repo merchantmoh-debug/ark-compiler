@@ -323,7 +323,7 @@ mod tests {
     }
 
     #[test]
-    fn test_destructuring_mismatch() {
+    fn test_destructuring_mismatch_not_enough_values() {
         let mut scope = Scope::new();
         let mut interpreter = Interpreter::new();
 
@@ -335,5 +335,47 @@ mod tests {
 
         let result = interpreter.eval_statement(&stmt, &mut scope);
         assert!(matches!(result, Err(RuntimeError::NotExecutable)));
+    }
+
+    #[test]
+    fn test_destructuring_mismatch_too_many_values() {
+        let mut scope = Scope::new();
+        let mut interpreter = Interpreter::new();
+
+        // let (a) = [1, 2];
+        let stmt = Statement::LetDestructure {
+            names: vec!["a".to_string()],
+            value: Expression::List(vec![
+                Expression::Literal("1".to_string()),
+                Expression::Literal("2".to_string()),
+            ]),
+        };
+
+        let result = interpreter.eval_statement(&stmt, &mut scope);
+        assert!(matches!(result, Err(RuntimeError::NotExecutable)));
+    }
+
+    #[test]
+    fn test_destructuring_success() {
+        let mut scope = Scope::new();
+        let mut interpreter = Interpreter::new();
+
+        // let (a, b) = [1, 2];
+        let stmt = Statement::LetDestructure {
+            names: vec!["a".to_string(), "b".to_string()],
+            value: Expression::List(vec![
+                Expression::Literal("1".to_string()),
+                Expression::Literal("2".to_string()),
+            ]),
+        };
+
+        let result = interpreter.eval_statement(&stmt, &mut scope);
+        assert!(matches!(result, Ok(Value::Unit)));
+
+        // Verify variables are set
+        let a = scope.get_or_move(&"a".to_string()).unwrap();
+        let b = scope.get_or_move(&"b".to_string()).unwrap();
+        assert_eq!(a, Value::Integer(1));
+        assert_eq!(b, Value::Integer(2));
     }
 }
