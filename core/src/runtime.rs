@@ -17,10 +17,10 @@
  */
 
 use crate::ast::FunctionDef;
-use crate::bytecode::Chunk; // Import Chunk
+use crate::bytecode::Chunk;
 
 use std::collections::HashMap;
-use std::rc::Rc; // Import Rc
+use std::rc::Rc;
 
 #[derive(Debug, Clone)]
 pub enum Value {
@@ -73,9 +73,10 @@ impl Value {
             | Value::Function(_)
             | Value::NativeFunction(_)
             | Value::String(_) => false,
-            Value::List(_) | Value::LinearObject { .. } | Value::Buffer(_) | Value::Struct(_) => {
-                true
-            }
+            Value::List(_)
+            | Value::LinearObject { .. }
+            | Value::Buffer(_)
+            | Value::Struct(_) => true,
             Value::Return(val) => val.is_linear(), // Recursive check
         }
     }
@@ -166,4 +167,6 @@ pub enum RuntimeError {
     StackUnderflow,
     #[error("Invalid operation: {0}")]
     InvalidOperation(String),
+    #[error("System Lockout: Recursion Limit Exceeded (Vertigo Check)")]
+    RecursionLimitExceeded,
 }

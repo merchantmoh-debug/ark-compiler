@@ -18,7 +18,6 @@
 
 use ark_0_zheng::compiler::Compiler; // JIT
 use ark_0_zheng::loader::load_ark_program;
-use ark_0_zheng::runtime::Scope;
 use ark_0_zheng::vm::VM; // Bytecode VM
 use std::env;
 use std::fs;
@@ -59,7 +58,7 @@ fn main() {
 
             // 4. Run
             match vm.run() {
-                Ok(val) => {
+                Ok(_val) => {
                     // println!("Execution Result: {:?}", val);
                 }
                 Err(e) => {

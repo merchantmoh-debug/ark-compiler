@@ -224,14 +224,17 @@ mod tests {
             name: "unused".to_string(),
             inputs: vec![],
             output: ArkType::Shared("Void".to_string()),
-            body: Box::new(MastNode::new(ArkNode::Statement(Statement::Block(vec![
-                Statement::Let {
-                    name: "x".to_string(),
-                    ty: Some(ArkType::Linear("Resource".to_string())),
-                    value: Expression::Literal("dummy".to_string()),
-                },
-                Statement::Return(Expression::Literal("void".to_string())),
-            ])))),
+            body: Box::new(
+                MastNode::new(ArkNode::Statement(Statement::Block(vec![
+                    Statement::Let {
+                        name: "x".to_string(),
+                        ty: Some(ArkType::Linear("Resource".to_string())),
+                        value: Expression::Literal("dummy".to_string()),
+                    },
+                    Statement::Return(Expression::Literal("void".to_string())),
+                ])))
+                .unwrap(),
+            ),
         };
 
         let mut checker = LinearChecker::new();
@@ -248,15 +251,18 @@ mod tests {
             name: "double".to_string(),
             inputs: vec![],
             output: ArkType::Shared("Void".to_string()),
-            body: Box::new(MastNode::new(ArkNode::Statement(Statement::Block(vec![
-                Statement::Let {
-                    name: "x".to_string(),
-                    ty: Some(ArkType::Linear("Resource".to_string())),
-                    value: Expression::Literal("dummy".to_string()),
-                },
-                Statement::Expression(Expression::Variable("x".to_string())),
-                Statement::Expression(Expression::Variable("x".to_string())),
-            ])))),
+            body: Box::new(
+                MastNode::new(ArkNode::Statement(Statement::Block(vec![
+                    Statement::Let {
+                        name: "x".to_string(),
+                        ty: Some(ArkType::Linear("Resource".to_string())),
+                        value: Expression::Literal("dummy".to_string()),
+                    },
+                    Statement::Expression(Expression::Variable("x".to_string())),
+                    Statement::Expression(Expression::Variable("x".to_string())),
+                ])))
+                .unwrap(),
+            ),
         };
 
         let mut checker = LinearChecker::new();
@@ -273,14 +279,17 @@ mod tests {
             name: "valid".to_string(),
             inputs: vec![],
             output: ArkType::Shared("Void".to_string()),
-            body: Box::new(MastNode::new(ArkNode::Statement(Statement::Block(vec![
-                Statement::Let {
-                    name: "x".to_string(),
-                    ty: Some(ArkType::Linear("Resource".to_string())),
-                    value: Expression::Literal("dummy".to_string()),
-                },
-                Statement::Return(Expression::Variable("x".to_string())),
-            ])))),
+            body: Box::new(
+                MastNode::new(ArkNode::Statement(Statement::Block(vec![
+                    Statement::Let {
+                        name: "x".to_string(),
+                        ty: Some(ArkType::Linear("Resource".to_string())),
+                        value: Expression::Literal("dummy".to_string()),
+                    },
+                    Statement::Return(Expression::Variable("x".to_string())),
+                ])))
+                .unwrap(),
+            ),
         };
 
         let mut checker = LinearChecker::new();
@@ -294,16 +303,19 @@ mod tests {
             name: "shared".to_string(),
             inputs: vec![],
             output: ArkType::Shared("Void".to_string()),
-            body: Box::new(MastNode::new(ArkNode::Statement(Statement::Block(vec![
-                Statement::Let {
-                    name: "x".to_string(),
-                    ty: Some(ArkType::Shared("Int".to_string())),
-                    value: Expression::Literal("42".to_string()),
-                },
-                Statement::Expression(Expression::Variable("x".to_string())),
-                Statement::Expression(Expression::Variable("x".to_string())),
-                Statement::Return(Expression::Variable("x".to_string())),
-            ])))),
+            body: Box::new(
+                MastNode::new(ArkNode::Statement(Statement::Block(vec![
+                    Statement::Let {
+                        name: "x".to_string(),
+                        ty: Some(ArkType::Shared("Int".to_string())),
+                        value: Expression::Literal("42".to_string()),
+                    },
+                    Statement::Expression(Expression::Variable("x".to_string())),
+                    Statement::Expression(Expression::Variable("x".to_string())),
+                    Statement::Return(Expression::Variable("x".to_string())),
+                ])))
+                .unwrap(),
+            ),
         };
 
         let mut checker = LinearChecker::new();
