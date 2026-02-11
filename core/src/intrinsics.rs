@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright (c) 2026 Mohamad Al-Zawahreh (dba Sovereign Systems).
  *
  * This file is part of the Ark Sovereign Compiler.
