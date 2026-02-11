@@ -55,60 +55,60 @@ func lexer_new(source) {
 func lexer_peek(lexer) {
     let (len, lexer) := sys.struct.get(lexer, "length")
     let (pos, lexer) := sys.struct.get(lexer, "pos")
-    
+
     // Restore
     lexer := sys.struct.set(lexer, "length", len)
     lexer := sys.struct.set(lexer, "pos", pos)
-    
+
     if pos >= len {
         return ["", lexer] // EOF
     }
-    
+
     let (source, lexer) := sys.struct.get(lexer, "source")
-    
+
     // sys.str.get returns [char, source]
     let (char_str, source) := sys.str.get(source, pos)
-    
+
     // Restore source
     lexer := sys.struct.set(lexer, "source", source)
-    
+
     return [char_str, lexer]
 }
 
 func lexer_advance(lexer) {
     let (c, lexer) := lexer_peek(lexer)
-    
+
     let (pos, lexer) := sys.struct.get(lexer, "pos")
     new_pos := pos + 1
     lexer := sys.struct.set(lexer, "pos", new_pos)
-    
+
     let (line, lexer) := sys.struct.get(lexer, "line")
     let (col, lexer) := sys.struct.get(lexer, "col")
-    
+
     if c == "\n" {
         line := line + 1
         col := 1
     } else {
         col := col + 1
     }
-    
+
     lexer := sys.struct.set(lexer, "line", line)
     lexer := sys.struct.set(lexer, "col", col)
-    
+
     return lexer
 }
 
 func lexer_add_token(lexer, type, value) {
     let (line, lexer) := sys.struct.get(lexer, "line")
     let (col, lexer) := sys.struct.get(lexer, "col")
-    
+
     token := {
         type: type,
         value: value,
         line: line,
         col: col
     }
-    
+
     let (tokens, lexer) := sys.struct.get(lexer, "tokens")
     tokens := sys.list.append(tokens, token)
     lexer := sys.struct.set(lexer, "tokens", tokens)
@@ -136,23 +136,23 @@ func lexer_scan(lexer_arg) {
     }
     
 
-    
+
 
     // Optimize: Loop over whitespace instead of recurse
     is_ws := is_whitespace(char_str)
     while is_ws {
         lex := lexer_advance(lex)
-        
+
         // Peek next
         let (next_c, next_l) := lexer_peek(lex)
         lex := next_l
         char_str := next_c
-        
+
         if char_str == "" {
              lex := lexer_add_token(lex, TOKEN_EOF, "EOF")
              return lex
         }
-        
+
         is_ws := is_whitespace(char_str)
     }
     
@@ -161,7 +161,7 @@ func lexer_scan(lexer_arg) {
 
         // Parse number
         num_str := ""
-        
+
         // Loop
         looping := true
         while looping {
@@ -174,7 +174,7 @@ func lexer_scan(lexer_arg) {
                 looping := false
             }
         }
-        
+
         lex := lexer_add_token(lex, TOKEN_NUMBER, num_str)
         return lex
     }
@@ -184,15 +184,15 @@ func lexer_scan(lexer_arg) {
 
         // Parse identifier/keyword
         ident_str := ""
-        
+
         looping := true
         while looping {
             let (c, l) := lexer_peek(lex)
             lex := l
-            
+
             is_alph := is_alpha(c)
             is_dig := is_digit(c)
-            
+
             if is_alph or is_dig {
                 ident_str := ident_str + c
                 lex := lexer_advance(lex)
@@ -221,16 +221,16 @@ func lexer_tokenize(source) {
         // Unpack tokens to check length
         let (tokens, lexer) := sys.struct.get(lexer, "tokens")
         let (count, tokens) := sys.len(tokens)
-        
+
         if count > 0 {
             // Peek last token
             let (last_token_node, tokens) := sys.list.get(tokens, count - 1)
             // Restore tokens to lexer so we can pass lexer to scan
             lexer := sys.struct.set(lexer, "tokens", tokens)
-            
+
             // Check type
             let (ttype, last_token_node) := sys.struct.get(last_token_node, "type")
-            
+
             if ttype == 0 { // EOF
                 running := false
             } else {
@@ -242,7 +242,7 @@ func lexer_tokenize(source) {
             lexer := lexer_scan(lexer)
         }
     }
-    
+
     // Return just tokens
     let (tokens, lexer) := sys.struct.get(lexer, "tokens")
     return tokens
@@ -875,7 +875,7 @@ func parse_program(tokens) {
     
     let (child_count, _) := sys.len(children)
     print("Parser Output Nodes: " + int_to_str(child_count))
-    
+
     return {
         kind: NODE_PROGRAM,
         children: children
@@ -1017,27 +1017,27 @@ func codegen_program(ast) {
     let (children, ast) := sys.struct.get(ast, "children")
     let (count, children) := sys.len(children)
     
-    // We need to collect all functions. 
+    // We need to collect all functions.
     // MAST structure: List of Nodes.
-    
+
     json := "["
     i := 0
     first := 1
-    
+
     while i < count {
         let (child, children) := sys.list.get(children, i)
         let (kind, child) := sys.struct.get(child, "kind")
-        
+
         if kind == 1 { // FUNC_DEF
             func_json := codegen_func(child)
-            
+
             if first == 0 {
                 json := json + ", "
             }
             json := json + func_json
             first := 0
         }
-        
+
         i := i + 1
     }
     
@@ -1060,7 +1060,7 @@ func main() {
     
     // Threading sys_args linearly
     let (arg_count, sys_args) := sys.len(sys_args)
-    
+
     if arg_count < 4 {
         print("Usage: compiler.ark <input.ark> <output.json>")
         return 0
@@ -1068,7 +1068,7 @@ func main() {
     
     // Debug Args
     // print("Arg Count: " + int_to_str(arg_count))
-    
+
     print("DEBUG: Accessing sys_args[2]...")
     // Get Input Path
     let (input_path, sys_args) := sys.list.get(sys_args, 2)

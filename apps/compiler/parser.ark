@@ -619,7 +619,7 @@ func parse_program(tokens) {
     
     let (child_count, _) := sys.len(children)
     print("Parser Output Nodes: " + int_to_str(child_count))
-    
+
     return {
         kind: NODE_PROGRAM,
         children: children
