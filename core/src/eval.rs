@@ -39,7 +39,8 @@ impl Interpreter {
             ArkNode::Statement(stmt) => Interpreter::eval_statement(stmt, scope),
             ArkNode::Expression(expr) => Interpreter::eval_expression(expr, scope),
             ArkNode::Function(func_def) => {
-                scope.set(func_def.name.clone(), Value::Function(func_def.clone()));
+                // Interpreter deprecated for functions. VM is used.
+                scope.set(func_def.name.clone(), Value::Unit);
                 Ok(Value::Unit)
             }
             _ => Ok(Value::Unit),
@@ -167,7 +168,7 @@ impl Interpreter {
                 Ok(Value::Unit)
             }
             Statement::Function(func_def) => {
-                scope.set(func_def.name.clone(), Value::Function(func_def.clone()));
+                scope.set(func_def.name.clone(), Value::Unit);
                 Ok(Value::Unit)
             }
         }
@@ -223,30 +224,14 @@ impl Interpreter {
 
                 // User Function Lookup
                 if let Some(val) = scope.get_or_move(function_hash) {
-                    if let Value::Function(func_def) = val {
-                        // Create new scope with parent
-                        let mut call_scope = Scope::with_parent(scope);
-
-                        // Bind args
-                        if evaluated_args.len() != func_def.inputs.len() {
-                            println!(
-                                "Arity mismatch: expected {}, got {}",
-                                func_def.inputs.len(),
-                                evaluated_args.len()
-                            );
-                            return Err(EvalError::NotExecutable); // Arity mismatch
-                        }
-
-                        for (i, (param_name, _)) in func_def.inputs.iter().enumerate() {
-                            call_scope.set(param_name.clone(), evaluated_args[i].clone());
-                        }
-
-                        // Eval body
-                        // We need to recursively evaluate the AST node.
-                        // Since func_def.body is MastNode, we need to extract content.
-                        // Currently MastNode holds ArkNode.
-                        // Wait, func_def.body is Box<MastNode>.
-                        return Interpreter::eval(&func_def.body.content, &mut call_scope);
+                    if let Value::Function(_) = val {
+                        // Interpreter cannot execute Bytecode Functions directly.
+                        // This path should only be taken if running pure Interpreter mode, which is deprecated for functions.
+                        println!(
+                            "Interpreter Warning: Cannot execute bytecode function '{}' in tree-walker.",
+                            function_hash
+                        );
+                        return Err(EvalError::NotExecutable);
                     } else {
                         println!(
                             "Found variable '{}' but it is not a function: {:?}",
