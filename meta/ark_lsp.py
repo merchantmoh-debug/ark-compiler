@@ -4,7 +4,7 @@ import json
 import os
 import logging
 
-# Configure logging to stderr so it doesn't interfere with stdout
+# Configure logging to stderr so it doesn't interfere with stdout (JSON-RPC)
 logging.basicConfig(stream=sys.stderr, level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 try:
@@ -15,7 +15,8 @@ except ImportError:
 
 class ArkLSP:
     """
-    A basic Language Server Protocol (LSP) stub implementation for Ark.
+    A basic Language Server Protocol (LSP) stub for Ark.
+    Handles 'initialize', 'textDocument/didOpen', and 'textDocument/didChange'.
     Communicates via JSON-RPC over stdio.
     """
     def __init__(self):
@@ -24,7 +25,7 @@ class ArkLSP:
         try:
             with open(self.grammar_path, "r") as f:
                 grammar = f.read()
-            # Use LALR parser as in meta/ark.py for consistency
+            # Use LALR parser for performance, matching the interpreter implementation
             self.parser = Lark(grammar, start="start", parser="lalr")
             logging.info(f"Loaded grammar from {self.grammar_path}")
         except Exception as e:
@@ -33,26 +34,27 @@ class ArkLSP:
 
     def run(self):
         """
-        Main loop: Read headers, read body, handle message.
+        Main loop for the LSP server.
+        Reads JSON-RPC messages from stdin and dispatches them.
         """
         logging.info("Ark LSP started")
         while True:
             headers = {}
             try:
-                # Read headers (Content-Length: ...)
+                # Read headers
                 while True:
                     line = sys.stdin.buffer.readline()
                     if not line: # EOF
                         return
                     line = line.decode('ascii').strip()
-                    if not line: # End of headers (blank line)
+                    if not line: # End of headers (empty line)
                         break
                     parts = line.split(":", 1)
                     if len(parts) == 2:
                         # Normalize header keys to lowercase for case-insensitive lookup
                         headers[parts[0].strip().lower()] = parts[1].strip()
 
-                # Read body based on Content-Length
+                # Read content
                 if "content-length" in headers:
                     length = int(headers["content-length"])
                     body = sys.stdin.buffer.read(length).decode('utf-8')
@@ -60,12 +62,12 @@ class ArkLSP:
                     self.handle_message(request)
             except Exception as e:
                 logging.error(f"Error in run loop: {e}")
-                # Don't break on errors, try to recover for next message
+                # Don't crash on bad message, just log and continue
                 pass
 
     def handle_message(self, msg):
         """
-        Dispatch message based on 'method'.
+        Dispatches the message to the appropriate handler.
         """
         method = msg.get("method")
         msg_id = msg.get("id")
@@ -74,6 +76,7 @@ class ArkLSP:
         logging.info(f"Received method: {method}")
 
         if method == "initialize":
+            # Respond with capabilities
             result = {
                 "capabilities": {
                     "textDocumentSync": 1 # Full sync
@@ -88,17 +91,19 @@ class ArkLSP:
             sys.exit(0)
 
         elif method == "textDocument/didOpen":
+            # Validate the document upon opening
             self.validate(params["textDocument"]["uri"], params["textDocument"]["text"])
 
         elif method == "textDocument/didChange":
-            # Sync 1 means we get full text in contentChanges[0]['text']
+            # Validate the document upon changes
+            # Since we declared Full sync (1), we get the full text in the first change event
             if params.get("contentChanges"):
                 text = params["contentChanges"][0]["text"]
                 self.validate(params["textDocument"]["uri"], text)
 
     def validate(self, uri, text):
         """
-        Validate source code using Lark parser and publish diagnostics.
+        Validates the Ark code using the Lark parser and publishes diagnostics.
         """
         if not self.parser:
             return
@@ -107,10 +112,11 @@ class ArkLSP:
         try:
             self.parser.parse(text)
         except exceptions.UnexpectedToken as e:
-            # Line/Col are 1-based in Lark, 0-based in LSP
+            # Lark line/col are 1-based, LSP is 0-based
             line = e.line - 1
             col = e.column - 1
-            # Try to determine length of the problematic token
+            
+            # Try to determine token length for better highlighting
             length = 1
             if hasattr(e.token, "value"):
                 length = len(e.token.value)
@@ -140,12 +146,16 @@ class ArkLSP:
             logging.error(f"Validation error: {e}")
             pass
 
+        # Publish diagnostics
         self.send_notification("textDocument/publishDiagnostics", {
             "uri": uri,
             "diagnostics": diagnostics
         })
 
     def send_response(self, msg_id, result):
+        """
+        Sends a JSON-RPC response.
+        """
         response = {
             "jsonrpc": "2.0",
             "id": msg_id,
@@ -154,6 +164,9 @@ class ArkLSP:
         self.write_message(response)
 
     def send_notification(self, method, params):
+        """
+        Sends a JSON-RPC notification.
+        """
         notification = {
             "jsonrpc": "2.0",
             "method": method,
@@ -162,6 +175,9 @@ class ArkLSP:
         self.write_message(notification)
 
     def write_message(self, msg):
+        """
+        Writes a message to stdout with Content-Length header.
+        """
         body = json.dumps(msg)
         content_length = len(body.encode('utf-8'))
         response = f"Content-Length: {content_length}\r\n\r\n{body}"
