@@ -20,6 +20,8 @@ import urllib.error
 import urllib.parse
 import codecs
 import queue
+from cryptography.hazmat.primitives.asymmetric import ed25519
+from cryptography.hazmat.primitives import serialization
 
 # --- Global Event Queue ---
 EVENT_QUEUE = queue.Queue()
@@ -28,6 +30,9 @@ ARK_AI_MODE = None
 # --- Security ---
 
 class SandboxViolation(Exception):
+    pass
+
+class LinearityViolation(Exception):
     pass
 
 def check_path_security(path):
@@ -82,13 +87,23 @@ class Scope:
 
     def get(self, name: str) -> Optional[ArkValue]:
         if name in self.vars:
-            return self.vars[name]
+            val = self.vars[name]
+            if val.type == "Moved":
+                raise LinearityViolation(f"Use of moved variable '{name}'")
+            return val
         if self.parent:
             return self.parent.get(name)
         return None
 
     def set(self, name: str, val: ArkValue):
         self.vars[name] = val
+
+    def mark_moved(self, name: str):
+        if name in self.vars:
+            self.vars[name] = ArkValue(None, "Moved")
+            return
+        if self.parent:
+            self.parent.mark_moved(name)
 
 # --- Intrinsics ---
 
@@ -517,7 +532,6 @@ def sys_time_now(args: List[ArkValue]):
     if len(args) != 0:
         raise Exception("sys.time.now expects 0 arguments")
     return ArkValue(int(time.time() * 1000), "Integer")
-    return ArkValue(int(time.time() * 1000), "Integer")
 
 def sys_crypto_hash(args: List[ArkValue]):
     if len(args) != 1 or args[0].type != "String":
@@ -673,6 +687,13 @@ def sys_struct_set(args: List[ArkValue]):
         return struct_val
 
     raise Exception(f"sys.struct.set not supported for type {struct_val.type}")
+
+def sys_struct_has(args: List[ArkValue]):
+    if len(args) != 2: raise Exception("sys.struct.has expects obj, field")
+    obj = args[0]
+    field = args[1].val
+    if obj.type != "Instance": return ArkValue(False, "Boolean")
+    return ArkValue(field in obj.val.fields, "Boolean")
 
 def sys_mem_inspect(args: List[ArkValue]):
     if len(args) != 1 or args[0].type != "Buffer": raise Exception("sys.mem.inspect expects buffer")
@@ -900,96 +921,6 @@ def sys_exit(args: List[ArkValue]):
     if len(args) > 0 and args[0].type == "Integer":
         code = args[0].val
     sys.exit(code)
-
-def sys_struct_get(args: List[ArkValue]):
-    if len(args) != 2: raise Exception("sys.struct.get expects obj, field")
-    obj = args[0]
-    field = args[1].val
-
-    if obj.type != "Instance":
-         raise Exception(f"sys.struct.get expects Instance, got {obj.type}")
-
-    val = obj.val.fields.get(field)
-    if val is None:
-        raise Exception(f"Field {field} not found on struct")
-
-    return ArkValue([val, obj], "List")
-
-def sys_struct_set(args: List[ArkValue]):
-    if len(args) != 3: raise Exception("sys.struct.set expects obj, field, val")
-    obj = args[0]
-    field = args[1].val
-    val = args[2]
-
-    if obj.type != "Instance":
-         raise Exception(f"sys.struct.set expects Instance, got {obj.type}")
-
-    obj.val.fields[field] = val
-    return obj
-
-def sys_struct_has(args: List[ArkValue]):
-    if len(args) != 2: raise Exception("sys.struct.has expects obj, field")
-    obj = args[0]
-    field = args[1].val
-    if obj.type != "Instance": return ArkValue(False, "Boolean")
-    return ArkValue(field in obj.val.fields, "Boolean")
-
-def intrinsic_math_pow(args: List[ArkValue]):
-    if len(args) != 2: raise Exception("math.pow expects 2 args")
-    return ArkValue(int(math.pow(args[0].val, args[1].val)), "Integer")
-
-def intrinsic_math_sqrt(args: List[ArkValue]):
-    if len(args) != 1: raise Exception("math.sqrt expects 1 arg")
-    return ArkValue(int(math.sqrt(args[0].val)), "Integer")
-
-def intrinsic_math_sin(args: List[ArkValue]):
-    if len(args) != 1: raise Exception("math.sin expects 1 arg")
-    return ArkValue(int(math.sin(args[0].val)), "Integer")
-
-def intrinsic_math_cos(args: List[ArkValue]):
-    if len(args) != 1: raise Exception("math.cos expects 1 arg")
-    return ArkValue(int(math.cos(args[0].val)), "Integer")
-
-def intrinsic_math_tan(args: List[ArkValue]):
-    if len(args) != 1: raise Exception("math.tan expects 1 arg")
-    return ArkValue(int(math.tan(args[0].val)), "Integer")
-
-def intrinsic_math_asin(args: List[ArkValue]):
-    if len(args) != 1: raise Exception("math.asin expects 1 arg")
-    return ArkValue(int(math.asin(args[0].val)), "Integer")
-
-def intrinsic_math_acos(args: List[ArkValue]):
-    if len(args) != 1: raise Exception("math.acos expects 1 arg")
-    return ArkValue(int(math.acos(args[0].val)), "Integer")
-
-def intrinsic_math_atan(args: List[ArkValue]):
-    if len(args) != 1: raise Exception("math.atan expects 1 arg")
-    return ArkValue(int(math.atan(args[0].val)), "Integer")
-
-def intrinsic_math_atan2(args: List[ArkValue]):
-    if len(args) != 2: raise Exception("math.atan2 expects 2 args")
-    return ArkValue(int(math.atan2(args[0].val, args[1].val)), "Integer")
-
-def sys_net_http_request(args: List[ArkValue]):
-    check_exec_security()
-    if len(args) < 2:
-        raise Exception("sys.net.http.request expects method, url, [body]")
-    method = args[0].val
-    url = args[1].val
-    body = None
-    if len(args) > 2:
-        body = args[2].val.encode('utf-8')
-
-    req = urllib.request.Request(url, data=body, method=method)
-    try:
-        with urllib.request.urlopen(req) as response:
-            status = response.getcode()
-            content = response.read().decode('utf-8')
-            return ArkValue([ArkValue(status, "Integer"), ArkValue(content, "String")], "List")
-    except urllib.error.HTTPError as e:
-        return ArkValue([ArkValue(e.code, "Integer"), ArkValue(e.read().decode('utf-8'), "String")], "List")
-    except Exception as e:
-        return ArkValue([ArkValue(0, "Integer"), ArkValue(str(e), "String")], "List")
 
 def sys_io_read_file_async(args: List[ArkValue]):
     if len(args) != 2: raise Exception("sys.io.read_file_async expects path, callback")
@@ -1439,6 +1370,7 @@ def eval_node(node, scope):
             func_val = eval_node(node.children[0], scope)
             
             args = []
+            arg_list_node = None
             if len(node.children) > 1:
                 arg_list_node = node.children[1]
                 if hasattr(arg_list_node, "children"):
@@ -1456,6 +1388,17 @@ def eval_node(node, scope):
             # If `print` is not in scope, `eval_node` returns Unit + Error (currently).
             
             if func_val.type == "Intrinsic":
+                intrinsic_name = func_val.val
+                if intrinsic_name in LINEAR_SPECS:
+                    consumed_indices = LINEAR_SPECS[intrinsic_name]
+                    if arg_list_node and hasattr(arg_list_node, "children"):
+                        for idx in consumed_indices:
+                            if idx < len(arg_list_node.children):
+                                arg_node = arg_list_node.children[idx]
+                                if hasattr(arg_node, "data") and arg_node.data == "var":
+                                    var_name = arg_node.children[0].value
+                                    scope.mark_moved(var_name)
+
                 return INTRINSICS[func_val.val](args)
                 
             if func_val.type == "Function":
