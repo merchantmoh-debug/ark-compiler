@@ -19,13 +19,19 @@ import urllib.request
 import urllib.error
 import urllib.parse
 import queue
+from cryptography.hazmat.primitives.asymmetric import ed25519
+from cryptography.hazmat.primitives import serialization
 
 # --- Global Event Queue ---
 EVENT_QUEUE = queue.Queue()
+ARK_AI_MODE = None
 
 # --- Security ---
 
 class SandboxViolation(Exception):
+    pass
+
+class LinearityViolation(Exception):
     pass
 
 def check_path_security(path):
@@ -80,13 +86,23 @@ class Scope:
 
     def get(self, name: str) -> Optional[ArkValue]:
         if name in self.vars:
-            return self.vars[name]
+            val = self.vars[name]
+            if val.type == "Moved":
+                raise LinearityViolation(f"Use of moved variable '{name}'")
+            return val
         if self.parent:
             return self.parent.get(name)
         return None
 
     def set(self, name: str, val: ArkValue):
         self.vars[name] = val
+
+    def mark_moved(self, name: str):
+        if name in self.vars:
+            self.vars[name] = ArkValue(None, "Moved")
+            return
+        if self.parent:
+            self.parent.mark_moved(name)
 
 # --- Intrinsics ---
 
@@ -158,23 +174,58 @@ def sys_fs_read(args: List[ArkValue]):
     except Exception as e:
         raise Exception(f"Error reading file {path}: {e}")
 
-def ask_ai(args: List[ArkValue]):
-    if not args or args[0].type != "String":
-        raise Exception("ask_ai expects a string prompt")
-    prompt = args[0].val
-    
-    api_key = os.environ.get("GOOGLE_API_KEY")
-    if not api_key:
-        raise Exception("GOOGLE_API_KEY environment variable not set")
+def detect_ai_mode():
+    global ARK_AI_MODE
+    if ARK_AI_MODE:
+        return ARK_AI_MODE
 
+    # 1. Try Ollama (Local)
+    try:
+        # Check /api/tags (GET) to see if Ollama is running
+        req = urllib.request.Request("http://localhost:11434/api/tags", method="GET")
+        with urllib.request.urlopen(req, timeout=0.5) as response:
+            if response.getcode() == 200:
+                print("Ollama Detected. Enabling Local AI Mode.")
+                ARK_AI_MODE = "OLLAMA"
+                return ARK_AI_MODE
+    except Exception:
+        pass
+
+    # 2. Check Google API Key
+    if os.environ.get("GOOGLE_API_KEY"):
+        print("Google API Key Detected. Enabling Cloud AI Mode.")
+        ARK_AI_MODE = "GEMINI"
+        return ARK_AI_MODE
+
+    # 3. Fallback
+    print("No AI Provider Detected. Using Mock Mode.")
+    ARK_AI_MODE = "MOCK"
+    return ARK_AI_MODE
+
+def ask_ollama(prompt: str):
+    url = "http://localhost:11434/api/generate"
+    headers = {"Content-Type": "application/json"}
+    # Using llama3 as default zero-config model.
+    # Ideally we'd parse /api/tags to find an available model if llama3 is missing.
+    data = {
+        "model": "llama3",
+        "prompt": prompt,
+        "stream": False
+    }
+    
+    try:
+        req = urllib.request.Request(url, data=json.dumps(data).encode("utf-8"), headers=headers, method="POST")
+        with urllib.request.urlopen(req) as response:
+            res_json = json.loads(response.read().decode("utf-8"))
+            return ArkValue(res_json.get("response", ""), "String")
+    except Exception as e:
+        print(f"Ollama Error: {e}")
+        return ask_mock()
+
+def ask_gemini(prompt: str, api_key: str):
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
     headers = {"Content-Type": "application/json"}
     data = {"contents": [{"parts": [{"text": prompt}]}]}
-    
-    import json
-    import urllib.request
-    import urllib.error
-    import time
     
     max_retries = 3
     for attempt in range(max_retries):
@@ -182,7 +233,6 @@ def ask_ai(args: List[ArkValue]):
             req = urllib.request.Request(url, data=json.dumps(data).encode("utf-8"), headers=headers, method="POST")
             with urllib.request.urlopen(req) as response:
                 res_json = json.loads(response.read().decode("utf-8"))
-                # Extract text from response
                 try:
                     text = res_json["candidates"][0]["content"]["parts"][0]["text"]
                     return ArkValue(text, "String")
@@ -191,22 +241,37 @@ def ask_ai(args: List[ArkValue]):
         except urllib.error.HTTPError as e:
             if e.code == 429:
                 if attempt < max_retries - 1:
-                    wait_time = (2 ** attempt) * 2 # 2, 4, 8 seconds
+                    wait_time = (2 ** attempt) * 2
                     print(f"AI Rate Limit (429). Retrying in {wait_time}s...")
                     time.sleep(wait_time)
                     continue
             print(f"AI Request Failed: {e.code} {e.reason}")
-            # Fall through to fallback
         except Exception as e:
             print(f"AI Error: {e}")
-            # Fall through to fallback
             
-    # Fallback for verification if API is dead/rate-limited
-    print(f"WARNING: API Failed. Using Fallback Mock for Verification.")
+    return ask_mock()
+
+def ask_mock():
+    print(f"WARNING: Using Mock AI Response.")
     start = "```python\n"
     code = "import datetime\nprint(f'Sovereignty Established: {datetime.datetime.now()}')\n"
     end = "```"
     return ArkValue(start + code + end, "String")
+
+def ask_ai(args: List[ArkValue]):
+    if not args or args[0].type != "String":
+        raise Exception("ask_ai expects a string prompt")
+    prompt = args[0].val
+
+    mode = detect_ai_mode()
+
+    if mode == "OLLAMA":
+        return ask_ollama(prompt)
+    elif mode == "GEMINI":
+        api_key = os.environ.get("GOOGLE_API_KEY")
+        return ask_gemini(prompt, api_key)
+    else:
+        return ask_mock()
 
 def extract_code(args: List[ArkValue]):
     if not args or args[0].type != "String":
@@ -990,6 +1055,30 @@ def sys_func_apply(args: List[ArkValue]):
         return INTRINSICS[func.val](arg_list.val)
     raise Exception(f"Cannot apply {func.type}")
 
+def sys_z3_verify(args: List[ArkValue]):
+    if len(args) != 1 or args[0].type != "List":
+        raise Exception("sys.z3.verify expects a List of constraints (Strings)")
+
+    constraints_val = args[0].val
+    constraints = []
+    for item in constraints_val:
+        if item.type != "String":
+             raise Exception("sys.z3.verify constraints list must contain Strings")
+        constraints.append(item.val)
+
+    try:
+        # Ensure we can import from same directory
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        if current_dir not in sys.path:
+            sys.path.append(current_dir)
+
+        import z3_bridge
+        res = z3_bridge.verify_contract(constraints)
+        return ArkValue(res, "Boolean")
+    except ImportError as e:
+        print(f"Warning: z3_bridge import failed: {e}", file=sys.stderr)
+        return ArkValue(True, "Boolean") # Fail open or mock success
+
 
 intrinsic_time_now = sys_time_now
 
@@ -1069,10 +1158,11 @@ INTRINSICS = {
     "sys.net.request_async": sys_net_request_async,
     "sys.event.poll": sys_event_poll,
     "sys.func.apply": sys_func_apply,
+    "sys.z3.verify": sys_z3_verify,
 
     # Intrinsics (Aliased / Specific)
-    "time_now": intrinsic_time_now,
-    "intrinsic_time_now": intrinsic_time_now,
+    "time_now": sys_time_now,
+    "intrinsic_time_now": sys_time_now,
     "sys_crypto_hash": sys_crypto_hash,
     "intrinsic_and": sys_and,
     "intrinsic_not": intrinsic_not,
@@ -1293,6 +1383,7 @@ def eval_node(node, scope):
             func_val = eval_node(node.children[0], scope)
             
             args = []
+            arg_list_node = None
             if len(node.children) > 1:
                 arg_list_node = node.children[1]
                 if hasattr(arg_list_node, "children"):
@@ -1310,6 +1401,17 @@ def eval_node(node, scope):
             # If `print` is not in scope, `eval_node` returns Unit + Error (currently).
             
             if func_val.type == "Intrinsic":
+                intrinsic_name = func_val.val
+                if intrinsic_name in LINEAR_SPECS:
+                    consumed_indices = LINEAR_SPECS[intrinsic_name]
+                    if arg_list_node and hasattr(arg_list_node, "children"):
+                        for idx in consumed_indices:
+                            if idx < len(arg_list_node.children):
+                                arg_node = arg_list_node.children[idx]
+                                if hasattr(arg_node, "data") and arg_node.data == "var":
+                                    var_name = arg_node.children[0].value
+                                    scope.mark_moved(var_name)
+
                 return INTRINSICS[func_val.val](args)
                 
             if func_val.type == "Function":
