@@ -44,6 +44,7 @@ assign_attr: atom "." IDENTIFIER ":=" expression
            | comparison ">=" sum -> ge
            | comparison "<=" sum -> le
            | comparison "==" sum -> eq
+           | comparison "!=" sum -> neq
 
 ?sum: product
     | sum "+" product -> add
