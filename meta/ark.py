@@ -418,60 +418,28 @@ def sys_html_escape(args: List[ArkValue]):
         raise Exception("sys.html_escape expects a string")
     return ArkValue(html.escape(args[0].val), "String")
 
-def sys_net_http_request(args: List[ArkValue]):
-    check_exec_security()
-    if len(args) < 2: raise Exception("sys.net.http.request expects method, url, [body]")
-    method = args[0].val
-    url = args[1].val
-    data = None
-    if len(args) > 2 and args[2].type == "String":
-        data = args[2].val.encode('utf-8')
+def sys_struct_get(args: List[ArkValue]):
+    if len(args) != 2: raise Exception("sys.struct.get expects struct, field")
+    obj = args[0]
+    field = args[1].val
 
-    headers = {'User-Agent': 'Ark/1.0'}
-    req = urllib.request.Request(url, data=data, headers=headers, method=method)
-    try:
-        with urllib.request.urlopen(req) as response:
-            status = response.status
-            content = response.read().decode('utf-8')
-            return ArkValue([ArkValue(status, "Integer"), ArkValue(content, "String")], "List")
-    except urllib.error.HTTPError as e:
-        content = e.read().decode('utf-8')
-        return ArkValue([ArkValue(e.code, "Integer"), ArkValue(content, "String")], "List")
-    except Exception as e:
-         raise Exception(f"HTTP Request failed: {e}")
+    if obj.type == "Instance":
+        if field in obj.val.fields:
+             val = obj.val.fields[field]
+             return ArkValue([val, obj], "List")
+        raise Exception(f"Field {field} not found in struct")
+    raise Exception(f"sys.struct.get expects Instance, got {obj.type}")
 
-def sys_net_socket_connect(args: List[ArkValue]):
-    check_exec_security()
-    if len(args) != 2: raise Exception("sys.net.socket.connect expects host, port")
-    host = args[0].val
-    port = args[1].val
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.connect((host, port))
-    return ArkValue(s, "Socket")
+def sys_struct_set(args: List[ArkValue]):
+    if len(args) != 3: raise Exception("sys.struct.set expects struct, field, value")
+    obj = args[0]
+    field = args[1].val
+    val = args[2]
 
-def sys_net_socket_send(args: List[ArkValue]):
-    check_exec_security()
-    if len(args) != 2: raise Exception("sys.net.socket.send expects socket, data")
-    sock = args[0].val
-    data = args[1].val
-    if isinstance(data, str): data = data.encode('utf-8')
-    sock.sendall(data)
-    return ArkValue(None, "Unit")
-
-def sys_net_socket_recv(args: List[ArkValue]):
-    check_exec_security()
-    if len(args) != 2: raise Exception("sys.net.socket.recv expects socket, buf_size")
-    sock = args[0].val
-    size = args[1].val
-    data = sock.recv(size)
-    return ArkValue(data.decode('utf-8'), "String")
-
-def sys_net_socket_close(args: List[ArkValue]):
-    check_exec_security()
-    if len(args) != 1: raise Exception("sys.net.socket.close expects socket")
-    sock = args[0].val
-    sock.close()
-    return ArkValue(None, "Unit")
+    if obj.type == "Instance":
+        obj.val.fields[field] = val
+        return obj
+    raise Exception(f"sys.struct.set expects Instance, got {obj.type}")
 
 INTRINSICS = {
     # Core
@@ -494,10 +462,8 @@ INTRINSICS = {
     "sys.mem.write": sys_mem_write,
     "sys.net.http.request": sys_net_http_request,
     "sys.net.http.serve": sys_net_http_serve,
-    "sys.net.socket.close": sys_net_socket_close,
-    "sys.net.socket.connect": sys_net_socket_connect,
-    "sys.net.socket.recv": sys_net_socket_recv,
-    "sys.net.socket.send": sys_net_socket_send,
+    "sys.struct.get": sys_struct_get,
+    "sys.struct.set": sys_struct_set,
     "sys.str.get": sys_list_get,
     "sys.struct.get": sys_struct_get,
     "sys.struct.set": sys_struct_set,
@@ -615,19 +581,19 @@ def eval_node(node, scope):
             raise ReturnException(val)
 
         if node.data == "if_stmt":
-            idx = 0
-            while idx < len(node.children):
-                child = node.children[idx]
-                # If last element, it's else block
-                if idx == len(node.children) - 1:
-                    return eval_node(child, scope)
-
-                # Condition + Block pair
-                cond = eval_node(child, scope)
+            # Handle if - else if - else chain
+            num_children = len(node.children)
+            i = 0
+            while i + 1 < num_children:
+                cond = eval_node(node.children[i], scope)
                 if is_truthy(cond):
-                    return eval_node(node.children[idx+1], scope)
+                    return eval_node(node.children[i+1], scope)
+                i += 2
 
-                idx += 2
+            # Check for trailing else block
+            if i < num_children and node.children[i]:
+                return eval_node(node.children[i], scope)
+
             return ArkValue(None, "Unit")
 
         if node.data == "while_stmt":
@@ -904,6 +870,13 @@ def run_file(path):
     # list_obj is Python list of ArkValues
     scope.set("sys_args", ArkValue(args_vals, "List"))
     
+    # Inject sys_args
+    sys_args_list = []
+    if len(sys.argv) > 2:
+        for arg in sys.argv[2:]:
+            sys_args_list.append(ArkValue(arg, "String"))
+    scope.set("sys_args", ArkValue(sys_args_list, "List"))
+
     # 3. Evaluate
     try:
         eval_node(tree, scope)
