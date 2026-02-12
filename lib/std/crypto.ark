@@ -1,9 +1,10 @@
 // Standard Library: Crypto
-
-func _crypto_hash_wrapper(s) {
-    return intrinsic_crypto_hash(s)
-}
-
 crypto := {
-    hash: _crypto_hash_wrapper
+    hash: (s) => sys.crypto.hash(s),
+    merkle_root: (l) => sys.crypto.merkle_root(l),
+    ed25519: {
+        gen: () => sys.crypto.ed25519.gen(),
+        sign: (m, k) => sys.crypto.ed25519.sign(m, k),
+        verify: (s, m, p) => sys.crypto.ed25519.verify(s, m, p)
+    }
 }
