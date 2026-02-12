@@ -1,9 +1,5 @@
 // Standard Library: Time
-
-func _time_now_wrapper() {
-    return intrinsic_time_now()
-}
-
 time := {
-    now: _time_now_wrapper
+    now: () => sys.time.now(),
+    sleep: (s) => sys.time.sleep(s)
 }

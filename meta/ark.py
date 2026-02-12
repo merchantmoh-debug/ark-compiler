@@ -471,6 +471,7 @@ def sys_time_now(args: List[ArkValue]):
     if len(args) != 0:
         raise Exception("sys.time.now expects 0 arguments")
     return ArkValue(int(time.time() * 1000), "Integer")
+    return ArkValue(int(time.time() * 1000), "Integer")
 
 def sys_crypto_hash(args: List[ArkValue]):
     if len(args) != 1 or args[0].type != "String":
@@ -1134,7 +1135,6 @@ INTRINSICS = {
     "sys.struct.set": sys_struct_set,
     "sys.str.get": sys_list_get,
     "sys.struct.get": sys_struct_get,
-<<<<<<< HEAD
     "sys.struct.has": sys_struct_has,
     "sys.struct.set": sys_struct_set,
     "sys.chain.height": sys_chain_height,
@@ -1142,11 +1142,7 @@ INTRINSICS = {
     "sys.chain.submit_tx": sys_chain_submit_tx,
     "sys.chain.verify_tx": sys_chain_verify_tx,
     "sys.time.now": sys_time_now,
-    "sys.chain.verify_tx": sys_chain_verify_tx,
-    "sys.time.now": sys_time_now,
-=======
-    "sys.struct.set": sys_struct_set,
->>>>>>> pr-58
+    "sys.time.sleep": sys_time_sleep,
     "sys.time.sleep": sys_time_sleep,
     "math.sin_scaled": math_sin_scaled,
     "math.cos_scaled": math_cos_scaled,
@@ -1178,6 +1174,9 @@ INTRINSICS = {
     "sys.func.apply": sys_func_apply,
 
     # Intrinsics (Aliased / Specific)
+    "time_now": intrinsic_time_now,
+    "intrinsic_time_now": intrinsic_time_now,
+    "sys_crypto_hash": sys_crypto_hash,
     "intrinsic_and": sys_and,
     "intrinsic_not": intrinsic_not,
     "intrinsic_ask_ai": ask_ai,
@@ -1433,26 +1432,18 @@ def eval_node(node, scope):
         return ArkValue(int(node.children[0].value), "Integer")
     
     if node.data == "string":
-<<<<<<< HEAD
-        # Remove quotes
-        s = node.children[0].value[1:-1]
-        # Decode escape sequences
-        try:
-            s = codecs.decode(s, 'unicode_escape')
-        except:
-            pass # Fallback or keep raw if issue
-=======
+    if node.data == "string":
         # Use literal_eval to handle escapes (\n, \t, etc)
         import ast
-        s = ast.literal_eval(node.children[0].value)
->>>>>>> pr-58
+        try:
+            s = ast.literal_eval(node.children[0].value)
+        except:
+             # Fallback if literal_eval fails (e.g. strict syntax issues), though unlikely for valid strings
+             s = node.children[0].value[1:-1]
+        return ArkValue(s, "String")
         return ArkValue(s, "String")
         
-<<<<<<< HEAD
-    if node.data in ["add", "sub", "mul", "div", "lt", "gt", "le", "ge", "eq", "neq"]:
-=======
-    if node.data in ["add", "sub", "mul", "div", "mod", "lt", "gt", "le", "ge", "eq"]:
->>>>>>> pr-69
+    if node.data in ["add", "sub", "mul", "div", "mod", "lt", "gt", "le", "ge", "eq", "neq"]:
         left = eval_node(node.children[0], scope)
         right = eval_node(node.children[1], scope)
         return eval_binop(node.data, left, right)
