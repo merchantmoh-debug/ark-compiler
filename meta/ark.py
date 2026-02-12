@@ -20,6 +20,8 @@ import urllib.error
 import urllib.parse
 import codecs
 import queue
+from cryptography.hazmat.primitives.asymmetric import ed25519
+from cryptography.hazmat.primitives import serialization
 
 # --- Global Event Queue ---
 EVENT_QUEUE = queue.Queue()
@@ -480,7 +482,6 @@ def sys_time_now(args: List[ArkValue]):
     if len(args) != 0:
         raise Exception("sys.time.now expects 0 arguments")
     return ArkValue(int(time.time() * 1000), "Integer")
-    return ArkValue(int(time.time() * 1000), "Integer")
 
 def sys_crypto_hash(args: List[ArkValue]):
     if len(args) != 1 or args[0].type != "String":
@@ -636,6 +637,13 @@ def sys_struct_set(args: List[ArkValue]):
         return struct_val
 
     raise Exception(f"sys.struct.set not supported for type {struct_val.type}")
+
+def sys_struct_has(args: List[ArkValue]):
+    if len(args) != 2: raise Exception("sys.struct.has expects obj, field")
+    obj = args[0]
+    field = args[1].val
+    if obj.type != "Instance": return ArkValue(False, "Boolean")
+    return ArkValue(field in obj.val.fields, "Boolean")
 
 def sys_mem_inspect(args: List[ArkValue]):
     if len(args) != 1 or args[0].type != "Buffer": raise Exception("sys.mem.inspect expects buffer")
@@ -864,96 +872,6 @@ def sys_exit(args: List[ArkValue]):
         code = args[0].val
     sys.exit(code)
 
-def sys_struct_get(args: List[ArkValue]):
-    if len(args) != 2: raise Exception("sys.struct.get expects obj, field")
-    obj = args[0]
-    field = args[1].val
-
-    if obj.type != "Instance":
-         raise Exception(f"sys.struct.get expects Instance, got {obj.type}")
-
-    val = obj.val.fields.get(field)
-    if val is None:
-        raise Exception(f"Field {field} not found on struct")
-
-    return ArkValue([val, obj], "List")
-
-def sys_struct_set(args: List[ArkValue]):
-    if len(args) != 3: raise Exception("sys.struct.set expects obj, field, val")
-    obj = args[0]
-    field = args[1].val
-    val = args[2]
-
-    if obj.type != "Instance":
-         raise Exception(f"sys.struct.set expects Instance, got {obj.type}")
-
-    obj.val.fields[field] = val
-    return obj
-
-def sys_struct_has(args: List[ArkValue]):
-    if len(args) != 2: raise Exception("sys.struct.has expects obj, field")
-    obj = args[0]
-    field = args[1].val
-    if obj.type != "Instance": return ArkValue(False, "Boolean")
-    return ArkValue(field in obj.val.fields, "Boolean")
-
-def intrinsic_math_pow(args: List[ArkValue]):
-    if len(args) != 2: raise Exception("math.pow expects 2 args")
-    return ArkValue(int(math.pow(args[0].val, args[1].val)), "Integer")
-
-def intrinsic_math_sqrt(args: List[ArkValue]):
-    if len(args) != 1: raise Exception("math.sqrt expects 1 arg")
-    return ArkValue(int(math.sqrt(args[0].val)), "Integer")
-
-def intrinsic_math_sin(args: List[ArkValue]):
-    if len(args) != 1: raise Exception("math.sin expects 1 arg")
-    return ArkValue(int(math.sin(args[0].val)), "Integer")
-
-def intrinsic_math_cos(args: List[ArkValue]):
-    if len(args) != 1: raise Exception("math.cos expects 1 arg")
-    return ArkValue(int(math.cos(args[0].val)), "Integer")
-
-def intrinsic_math_tan(args: List[ArkValue]):
-    if len(args) != 1: raise Exception("math.tan expects 1 arg")
-    return ArkValue(int(math.tan(args[0].val)), "Integer")
-
-def intrinsic_math_asin(args: List[ArkValue]):
-    if len(args) != 1: raise Exception("math.asin expects 1 arg")
-    return ArkValue(int(math.asin(args[0].val)), "Integer")
-
-def intrinsic_math_acos(args: List[ArkValue]):
-    if len(args) != 1: raise Exception("math.acos expects 1 arg")
-    return ArkValue(int(math.acos(args[0].val)), "Integer")
-
-def intrinsic_math_atan(args: List[ArkValue]):
-    if len(args) != 1: raise Exception("math.atan expects 1 arg")
-    return ArkValue(int(math.atan(args[0].val)), "Integer")
-
-def intrinsic_math_atan2(args: List[ArkValue]):
-    if len(args) != 2: raise Exception("math.atan2 expects 2 args")
-    return ArkValue(int(math.atan2(args[0].val, args[1].val)), "Integer")
-
-def sys_net_http_request(args: List[ArkValue]):
-    check_exec_security()
-    if len(args) < 2:
-        raise Exception("sys.net.http.request expects method, url, [body]")
-    method = args[0].val
-    url = args[1].val
-    body = None
-    if len(args) > 2:
-        body = args[2].val.encode('utf-8')
-
-    req = urllib.request.Request(url, data=body, method=method)
-    try:
-        with urllib.request.urlopen(req) as response:
-            status = response.getcode()
-            content = response.read().decode('utf-8')
-            return ArkValue([ArkValue(status, "Integer"), ArkValue(content, "String")], "List")
-    except urllib.error.HTTPError as e:
-        return ArkValue([ArkValue(e.code, "Integer"), ArkValue(e.read().decode('utf-8'), "String")], "List")
-    except Exception as e:
-        return ArkValue([ArkValue(0, "Integer"), ArkValue(str(e), "String")], "List")
-
 def sys_io_read_file_async(args: List[ArkValue]):
     if len(args) != 2: raise Exception("sys.io.read_file_async expects path, callback")
     path = args[0].val
@@ -1048,6 +966,7 @@ def sys_chain_verify_tx(args: List[ArkValue]):
     if len(args) != 1: raise Exception("sys.chain.verify_tx expects tx")
     # Mock verification
     return ArkValue(True, "Boolean")
+
 def sys_fs_write_buffer(args: List[ArkValue]):
     if len(args) != 2 or args[0].type != "String" or args[1].type != "Buffer":
         raise Exception("sys.fs.write_buffer expects string path and buffer")
@@ -1101,10 +1020,6 @@ def sys_str_from_code(args: List[ArkValue]):
     if len(args) != 1: raise Exception("sys.str.from_code expects 1 arg")
     code = args[0].val
     return ArkValue(chr(code), "String")
-
-LINEAR_SPECS = {
-    "sys.mem.write": [0],
-}
 
 INTRINSICS = {
     # Core
@@ -1461,7 +1376,6 @@ def eval_node(node, scope):
         except:
              # Fallback if literal_eval fails (e.g. strict syntax issues), though unlikely for valid strings
              s = node.children[0].value[1:-1]
-        return ArkValue(s, "String")
         return ArkValue(s, "String")
         
     if node.data in ["add", "sub", "mul", "div", "mod", "lt", "gt", "le", "ge", "eq", "neq"]:
