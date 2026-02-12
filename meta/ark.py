@@ -4,7 +4,6 @@ import re
 import time
 import math
 import json
-import codecs
 from dataclasses import dataclass
 from typing import List, Dict, Any, Optional
 import http.server
@@ -906,6 +905,13 @@ def sys_exit(args: List[ArkValue]):
         code = args[0].val
     sys.exit(code)
 
+def sys_struct_has(args: List[ArkValue]):
+    if len(args) != 2: raise Exception("sys.struct.has expects obj, field")
+    obj = args[0]
+    field = args[1].val
+    if obj.type != "Instance": return ArkValue(False, "Boolean")
+    return ArkValue(field in obj.val.fields, "Boolean")
+
 def sys_io_read_file_async(args: List[ArkValue]):
     if len(args) != 2: raise Exception("sys.io.read_file_async expects path, callback")
     path = args[0].val
@@ -1111,6 +1117,15 @@ INTRINSICS = {
     "intrinsic_merkle_root": sys_crypto_merkle_root,
     "intrinsic_or": sys_or,
     "intrinsic_time_now": sys_time_now,
+    "intrinsic_math_pow": intrinsic_math_pow,
+    "intrinsic_math_sqrt": intrinsic_math_sqrt,
+    "intrinsic_math_sin": intrinsic_math_sin,
+    "intrinsic_math_cos": intrinsic_math_cos,
+    "intrinsic_math_tan": intrinsic_math_tan,
+    "intrinsic_math_asin": intrinsic_math_asin,
+    "intrinsic_math_acos": intrinsic_math_acos,
+    "intrinsic_math_atan": intrinsic_math_atan,
+    "intrinsic_math_atan2": intrinsic_math_atan2,
 }
 
 
