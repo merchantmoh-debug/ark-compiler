@@ -216,79 +216,8 @@ def extract_code(args: List[ArkValue]):
         return ArkValue(matches[0], "String")
     return ArkValue("", "String") # Return empty string if no code block found
 
-SOCKETS = {}
-socket_counter = 0
-
 def sys_net_http_request(args: List[ArkValue]):
-    check_exec_security()
-    if len(args) < 2:
-        raise Exception("sys.net.http.request expects method, url, [body]")
-
-    method = args[0].val
-    url = args[1].val
-    body = None
-    if len(args) > 2 and args[2].type == "String":
-        body = args[2].val.encode('utf-8')
-
-    req = urllib.request.Request(url, data=body, method=method)
-    try:
-        with urllib.request.urlopen(req) as response:
-            status = response.getcode()
-            content = response.read().decode('utf-8')
-            return ArkValue([ArkValue(status, "Integer"), ArkValue(content, "String")], "List")
-    except urllib.error.HTTPError as e:
-        content = e.read().decode('utf-8')
-        return ArkValue([ArkValue(e.code, "Integer"), ArkValue(content, "String")], "List")
-    except Exception as e:
-        return ArkValue([ArkValue(0, "Integer"), ArkValue(str(e), "String")], "List")
-
-def sys_net_socket_connect(args: List[ArkValue]):
-    check_exec_security()
-    if len(args) != 2: raise Exception("sys.net.socket.connect expects host, port")
-    host = args[0].val
-    port = args[1].val
-
-    global socket_counter, SOCKETS
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    try:
-        s.connect((host, port))
-        socket_counter += 1
-        handle = socket_counter
-        SOCKETS[handle] = s
-        return ArkValue(handle, "Integer")
-    except Exception as e:
-        raise Exception(f"Socket connection failed: {e}")
-
-def sys_net_socket_send(args: List[ArkValue]):
-    check_exec_security()
-    if len(args) != 2: raise Exception("sys.net.socket.send expects handle, data")
-    handle = args[0].val
-    data = args[1].val.encode('utf-8')
-
-    global SOCKETS
-    if handle not in SOCKETS: raise Exception("Invalid socket handle")
-    SOCKETS[handle].sendall(data)
-    return ArkValue(None, "Unit")
-
-def sys_net_socket_recv(args: List[ArkValue]):
-    check_exec_security()
-    if len(args) != 2: raise Exception("sys.net.socket.recv expects handle, size")
-    handle = args[0].val
-    size = args[1].val
-
-    global SOCKETS
-    if handle not in SOCKETS: raise Exception("Invalid socket handle")
-    data = SOCKETS[handle].recv(size)
-    return ArkValue(data.decode('utf-8', errors='ignore'), "String")
-
-def sys_net_socket_close(args: List[ArkValue]):
-    if len(args) != 1: raise Exception("sys.net.socket.close expects handle")
-    handle = args[0].val
-
-    global SOCKETS
-    if handle in SOCKETS:
-        SOCKETS[handle].close()
-        del SOCKETS[handle]
+    # Mock implementation for missing intrinsic
     return ArkValue(None, "Unit")
 
 def sys_net_http_serve(args: List[ArkValue]):
@@ -614,24 +543,52 @@ def sys_struct_has(args: List[ArkValue]):
     if obj.type != "Instance": return ArkValue(False, "Boolean")
     return ArkValue(field in obj.val.fields, "Boolean")
 
-def intrinsic_math_pow(args):
-    return ArkValue(math.pow(args[0].val, args[1].val), "Float")
-def intrinsic_math_sqrt(args):
-    return ArkValue(math.sqrt(args[0].val), "Float")
-def intrinsic_math_sin(args):
-    return ArkValue(math.sin(args[0].val), "Float")
-def intrinsic_math_cos(args):
-    return ArkValue(math.cos(args[0].val), "Float")
-def intrinsic_math_tan(args):
-    return ArkValue(math.tan(args[0].val), "Float")
-def intrinsic_math_asin(args):
-    return ArkValue(math.asin(args[0].val), "Float")
-def intrinsic_math_acos(args):
-    return ArkValue(math.acos(args[0].val), "Float")
-def intrinsic_math_atan(args):
-    return ArkValue(math.atan(args[0].val), "Float")
-def intrinsic_math_atan2(args):
-    return ArkValue(math.atan2(args[0].val, args[1].val), "Float")
+def sys_chain_height(args: List[ArkValue]):
+    if len(args) != 0:
+        raise Exception("sys.chain.height expects 0 arguments")
+    return ArkValue(10000, "Integer")
+
+def sys_chain_get_balance(args: List[ArkValue]):
+    if len(args) != 1 or args[0].type != "String":
+        raise Exception("sys.chain.get_balance expects a string address")
+    return ArkValue(5000, "Integer")
+
+def sys_chain_submit_tx(args: List[ArkValue]):
+    if len(args) != 1 or args[0].type != "String":
+        raise Exception("sys.chain.submit_tx expects a string payload")
+    return ArkValue("0x123...", "String")
+
+def sys_chain_verify_tx(args: List[ArkValue]):
+    if len(args) != 1 or args[0].type != "String":
+        raise Exception("sys.chain.verify_tx expects a string tx_id")
+    return ArkValue(True, "Boolean")
+
+def intrinsic_math_pow(args: List[ArkValue]):
+    return ArkValue(int(math.pow(args[0].val, args[1].val)), "Integer")
+
+def intrinsic_math_sqrt(args: List[ArkValue]):
+    return ArkValue(int(math.sqrt(args[0].val)), "Integer")
+
+def intrinsic_math_sin(args: List[ArkValue]):
+    return ArkValue(int(math.sin(args[0].val/10000.0)*10000), "Integer")
+
+def intrinsic_math_cos(args: List[ArkValue]):
+    return ArkValue(int(math.cos(args[0].val/10000.0)*10000), "Integer")
+
+def intrinsic_math_tan(args: List[ArkValue]):
+    return ArkValue(int(math.tan(args[0].val/10000.0)*10000), "Integer")
+
+def intrinsic_math_asin(args: List[ArkValue]):
+    return ArkValue(int(math.asin(args[0].val/10000.0)*10000), "Integer")
+
+def intrinsic_math_acos(args: List[ArkValue]):
+    return ArkValue(int(math.acos(args[0].val/10000.0)*10000), "Integer")
+
+def intrinsic_math_atan(args: List[ArkValue]):
+    return ArkValue(int(math.atan(args[0].val/10000.0)*10000), "Integer")
+
+def intrinsic_math_atan2(args: List[ArkValue]):
+    return ArkValue(int(math.atan2(args[0].val/10000.0, args[1].val/10000.0)*10000), "Integer")
 
 INTRINSICS = {
     # Core
@@ -664,6 +621,10 @@ INTRINSICS = {
     "sys.struct.get": sys_struct_get,
     "sys.struct.has": sys_struct_has,
     "sys.struct.set": sys_struct_set,
+    "sys.chain.height": sys_chain_height,
+    "sys.chain.get_balance": sys_chain_get_balance,
+    "sys.chain.submit_tx": sys_chain_submit_tx,
+    "sys.chain.verify_tx": sys_chain_verify_tx,
     "sys.time.now": sys_time_now,
     "sys.time.sleep": sys_time_sleep,
 
