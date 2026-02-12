@@ -4,6 +4,7 @@ import re
 import time
 import math
 import json
+import codecs
 from dataclasses import dataclass
 from typing import List, Dict, Any, Optional
 import http.server
@@ -418,28 +419,125 @@ def sys_html_escape(args: List[ArkValue]):
         raise Exception("sys.html_escape expects a string")
     return ArkValue(html.escape(args[0].val), "String")
 
+# --- New Intrinsics for LSP ---
+
+def sys_io_read_bytes(args: List[ArkValue]):
+    if len(args) != 1 or args[0].type != "Integer":
+        raise Exception("sys.io.read_bytes expects integer length")
+    n = args[0].val
+    data = sys.stdin.buffer.read(n)
+    return ArkValue(data.decode('utf-8', errors='ignore'), "String")
+
+def sys_io_read_line(args: List[ArkValue]):
+    if len(args) != 0:
+        raise Exception("sys.io.read_line expects 0 arguments")
+    line = sys.stdin.buffer.readline()
+    return ArkValue(line.decode('utf-8', errors='ignore'), "String")
+
+def sys_io_write(args: List[ArkValue]):
+    if len(args) != 1 or args[0].type != "String":
+        raise Exception("sys.io.write expects string")
+    s = args[0].val
+    sys.stdout.buffer.write(s.encode('utf-8'))
+    sys.stdout.buffer.flush()
+    return ArkValue(None, "Unit")
+
+def sys_log(args: List[ArkValue]):
+    if len(args) != 1:
+        raise Exception("sys.log expects 1 argument")
+    s = args[0].val
+    sys.stderr.write(str(s) + "\n")
+    return ArkValue(None, "Unit")
+
+def to_ark(val):
+    if isinstance(val, dict):
+        fields = {k: to_ark(v) for k, v in val.items()}
+        return ArkValue(ArkInstance(None, fields), "Instance")
+    elif isinstance(val, list):
+        return ArkValue([to_ark(v) for v in val], "List")
+    elif isinstance(val, str):
+        return ArkValue(val, "String")
+    elif isinstance(val, bool):
+        return ArkValue(val, "Boolean")
+    elif isinstance(val, int):
+        return ArkValue(val, "Integer")
+    elif isinstance(val, float):
+        return ArkValue(int(val), "Integer")
+    elif val is None:
+        return ArkValue(None, "Unit")
+    return ArkValue(None, "Unit")
+
+def sys_json_parse(args: List[ArkValue]):
+    if len(args) != 1 or args[0].type != "String":
+        raise Exception("sys.json.parse expects string")
+    try:
+        val = json.loads(args[0].val)
+        return to_ark(val)
+    except json.JSONDecodeError as e:
+        raise Exception(f"JSON Parse Error: {e}")
+
+def from_ark(val):
+    if val.type == "Instance":
+        # Check if fields exist (Instance of user struct or generic struct)
+        if hasattr(val.val, "fields"):
+            return {k: from_ark(v) for k, v in val.val.fields.items()}
+        return {}
+    elif val.type == "List":
+        return [from_ark(v) for v in val.val]
+    elif val.type == "String":
+        return val.val
+    elif val.type == "Integer":
+        return val.val
+    elif val.type == "Boolean":
+        return val.val
+    elif val.type == "Unit":
+        return None
+    return str(val.val)
+
+def sys_json_stringify(args: List[ArkValue]):
+    if len(args) != 1:
+        raise Exception("sys.json.stringify expects 1 argument")
+    val = from_ark(args[0])
+    return ArkValue(json.dumps(val), "String")
+
+def sys_exit(args: List[ArkValue]):
+    code = 0
+    if len(args) > 0 and args[0].type == "Integer":
+        code = args[0].val
+    sys.exit(code)
+
 def sys_struct_get(args: List[ArkValue]):
-    if len(args) != 2: raise Exception("sys.struct.get expects struct, field")
+    if len(args) != 2: raise Exception("sys.struct.get expects obj, field")
     obj = args[0]
     field = args[1].val
 
-    if obj.type == "Instance":
-        if field in obj.val.fields:
-             val = obj.val.fields[field]
-             return ArkValue([val, obj], "List")
-        raise Exception(f"Field {field} not found in struct")
-    raise Exception(f"sys.struct.get expects Instance, got {obj.type}")
+    if obj.type != "Instance":
+         raise Exception(f"sys.struct.get expects Instance, got {obj.type}")
+
+    val = obj.val.fields.get(field)
+    if val is None:
+        raise Exception(f"Field {field} not found on struct")
+
+    return ArkValue([val, obj], "List")
 
 def sys_struct_set(args: List[ArkValue]):
-    if len(args) != 3: raise Exception("sys.struct.set expects struct, field, value")
+    if len(args) != 3: raise Exception("sys.struct.set expects obj, field, val")
     obj = args[0]
     field = args[1].val
     val = args[2]
 
-    if obj.type == "Instance":
-        obj.val.fields[field] = val
-        return obj
-    raise Exception(f"sys.struct.set expects Instance, got {obj.type}")
+    if obj.type != "Instance":
+         raise Exception(f"sys.struct.set expects Instance, got {obj.type}")
+
+    obj.val.fields[field] = val
+    return obj
+
+def sys_struct_has(args: List[ArkValue]):
+    if len(args) != 2: raise Exception("sys.struct.has expects obj, field")
+    obj = args[0]
+    field = args[1].val
+    if obj.type != "Instance": return ArkValue(False, "Boolean")
+    return ArkValue(field in obj.val.fields, "Boolean")
 
 INTRINSICS = {
     # Core
@@ -466,8 +564,19 @@ INTRINSICS = {
     "sys.struct.set": sys_struct_set,
     "sys.str.get": sys_list_get,
     "sys.struct.get": sys_struct_get,
+    "sys.struct.has": sys_struct_has,
     "sys.struct.set": sys_struct_set,
+    "sys.time.now": sys_time_now,
     "sys.time.sleep": sys_time_sleep,
+
+    # IO / JSON
+    "sys.io.read_bytes": sys_io_read_bytes,
+    "sys.io.read_line": sys_io_read_line,
+    "sys.io.write": sys_io_write,
+    "sys.log": sys_log,
+    "sys.json.parse": sys_json_parse,
+    "sys.json.stringify": sys_json_stringify,
+    "sys.exit": sys_exit,
 
     # Intrinsics (Aliased / Specific)
     "intrinsic_and": sys_and,
@@ -734,15 +843,15 @@ def eval_node(node, scope):
     
     if node.data == "string":
         # Remove quotes
-        raw = node.children[0].value[1:-1]
+        s = node.children[0].value[1:-1]
+        # Decode escape sequences
         try:
-            # decode unicode_escape
-            s = codecs.decode(raw, 'unicode_escape')
+            s = codecs.decode(s, 'unicode_escape')
         except:
-            s = raw
+            pass # Fallback or keep raw if issue
         return ArkValue(s, "String")
         
-    if node.data in ["add", "sub", "mul", "div", "lt", "gt", "le", "ge", "eq"]:
+    if node.data in ["add", "sub", "mul", "div", "lt", "gt", "le", "ge", "eq", "neq"]:
         left = eval_node(node.children[0], scope)
         right = eval_node(node.children[1], scope)
         return eval_binop(node.data, left, right)
@@ -838,6 +947,7 @@ def eval_binop(op, left, right):
     if op == "le": return ArkValue(l <= r, "Boolean")
     if op == "ge": return ArkValue(l >= r, "Boolean")
     if op == "eq": return ArkValue(l == r, "Boolean")
+    if op == "neq": return ArkValue(l != r, "Boolean")
     return ArkValue(None, "Unit")
 
 # --- Main ---
@@ -849,10 +959,10 @@ def run_file(path):
     parser = Lark(grammar, start="start", parser="lalr") # LALR for Infix
     
     with open(path, "r") as f: code = f.read()
-    print(f"ark-prime: Running {path}")
+    # print(f"ark-prime: Running {path}", file=sys.stderr)
     
     tree = parser.parse(code)
-    # print(tree.pretty())
+    # print(tree.pretty(), file=sys.stderr)
     scope = Scope()
     scope.set("sys", ArkValue("sys", "Namespace"))
 
@@ -881,7 +991,7 @@ def run_file(path):
     try:
         eval_node(tree, scope)
     except ReturnException as e:
-        print(f"Error: Return statement outside function")
+        print(f"Error: Return statement outside function", file=sys.stderr)
     except Exception as e:
         # If it's a SandboxViolation, print it clearly
         if isinstance(e, SandboxViolation):
