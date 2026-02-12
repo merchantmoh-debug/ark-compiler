@@ -413,60 +413,27 @@ def sys_html_escape(args: List[ArkValue]):
         raise Exception("sys.html_escape expects a string")
     return ArkValue(html.escape(args[0].val), "String")
 
-def intrinsic_math_pow(args: List[ArkValue]):
-    if len(args) != 2: raise Exception("math.pow expects 2 arguments")
-    base = args[0].val
-    exp = args[1].val
-    return ArkValue(int(math.pow(base, exp)), "Integer")
+def sys_struct_get(args: List[ArkValue]):
+    if len(args) != 2: raise Exception("sys.struct.get expects instance, field_name")
+    obj = args[0]
+    field = args[1].val
+    if obj.type != "Instance": raise Exception(f"Expected Instance, got {obj.type}")
 
-def intrinsic_math_sqrt(args: List[ArkValue]):
-    if len(args) != 1: raise Exception("math.sqrt expects 1 argument")
-    val = args[0].val
-    if val < 0: raise Exception("math.sqrt expects non-negative integer")
-    return ArkValue(int(math.sqrt(val)), "Integer")
+    val = obj.val.fields.get(field)
+    if val is None: raise Exception(f"Field {field} not found")
 
-def intrinsic_math_sin(args: List[ArkValue]):
-    if len(args) != 1: raise Exception("math.sin expects 1 argument")
-    val = args[0].val
-    res = math.sin(val / 10000.0)
-    return ArkValue(int(res * 10000), "Integer")
+    # Return [val, obj]
+    return ArkValue([val, obj], "List")
 
-def intrinsic_math_cos(args: List[ArkValue]):
-    if len(args) != 1: raise Exception("math.cos expects 1 argument")
-    val = args[0].val
-    res = math.cos(val / 10000.0)
-    return ArkValue(int(res * 10000), "Integer")
+def sys_struct_set(args: List[ArkValue]):
+    if len(args) != 3: raise Exception("sys.struct.set expects instance, field_name, value")
+    obj = args[0]
+    field = args[1].val
+    val = args[2]
+    if obj.type != "Instance": raise Exception("Expected Instance")
 
-def intrinsic_math_tan(args: List[ArkValue]):
-    if len(args) != 1: raise Exception("math.tan expects 1 argument")
-    val = args[0].val
-    res = math.tan(val / 10000.0)
-    return ArkValue(int(res * 10000), "Integer")
-
-def intrinsic_math_asin(args: List[ArkValue]):
-    if len(args) != 1: raise Exception("math.asin expects 1 argument")
-    val = args[0].val
-    res = math.asin(val / 10000.0)
-    return ArkValue(int(res * 10000), "Integer")
-
-def intrinsic_math_acos(args: List[ArkValue]):
-    if len(args) != 1: raise Exception("math.acos expects 1 argument")
-    val = args[0].val
-    res = math.acos(val / 10000.0)
-    return ArkValue(int(res * 10000), "Integer")
-
-def intrinsic_math_atan(args: List[ArkValue]):
-    if len(args) != 1: raise Exception("math.atan expects 1 argument")
-    val = args[0].val
-    res = math.atan(val / 10000.0)
-    return ArkValue(int(res * 10000), "Integer")
-
-def intrinsic_math_atan2(args: List[ArkValue]):
-    if len(args) != 2: raise Exception("math.atan2 expects 2 arguments")
-    y = args[0].val
-    x = args[1].val
-    res = math.atan2(y / 10000.0, x / 10000.0)
-    return ArkValue(int(res * 10000), "Integer")
+    obj.val.fields[field] = val
+    return obj
 
 INTRINSICS = {
     # Core
@@ -489,7 +456,8 @@ INTRINSICS = {
     "sys.mem.write": sys_mem_write,
     "sys.net.http.serve": sys_net_http_serve,
     "sys.str.get": sys_list_get,
-    "sys.time.now": sys_time_now,
+    "sys.struct.get": sys_struct_get,
+    "sys.struct.set": sys_struct_set,
     "sys.time.sleep": sys_time_sleep,
 
     # Intrinsics (Aliased / Specific)
@@ -527,6 +495,7 @@ INTRINSICS = {
 # --- Evaluator ---
 
 def eval_node(node, scope):
+    if node is None: return ArkValue(None, "Unit")
     if hasattr(node, "data"):
         # print(f"DEBUG: Visiting {node.data}")
         if node.data == "start":
@@ -603,12 +572,19 @@ def eval_node(node, scope):
             raise ReturnException(val)
 
         if node.data == "if_stmt":
-            cond = eval_node(node.children[0], scope)
-            if is_truthy(cond):
-                return eval_node(node.children[1], scope)
-            # Check for else block
-            elif len(node.children) > 2 and node.children[2]:
-                return eval_node(node.children[2], scope)
+            idx = 0
+            while idx < len(node.children):
+                child = node.children[idx]
+                # If last element, it's else block
+                if idx == len(node.children) - 1:
+                    return eval_node(child, scope)
+
+                # Condition + Block pair
+                cond = eval_node(child, scope)
+                if is_truthy(cond):
+                    return eval_node(node.children[idx+1], scope)
+
+                idx += 2
             return ArkValue(None, "Unit")
 
         if node.data == "while_stmt":
@@ -749,7 +725,13 @@ def eval_node(node, scope):
     
     if node.data == "string":
         # Remove quotes
-        s = node.children[0].value[1:-1]
+        raw = node.children[0].value[1:-1]
+        # Unescape string
+        import codecs
+        try:
+            s = codecs.decode(raw, 'unicode_escape')
+        except:
+            s = raw
         return ArkValue(s, "String")
         
     if node.data in ["add", "sub", "mul", "div", "lt", "gt", "le", "ge", "eq"]:
@@ -862,9 +844,23 @@ def run_file(path):
     print(f"ark-prime: Running {path}")
     
     tree = parser.parse(code)
-    print(tree.pretty())
+    # print(tree.pretty())
     scope = Scope()
     scope.set("sys", ArkValue("sys", "Namespace"))
+
+    # Inject sys_args
+    # sys.argv: [meta/ark.py, run, script.ark, arg1, arg2...]
+    # We want sys_args to be [script.ark, arg1, arg2...]
+    # So slice from index 2
+    args_vals = []
+    if len(sys.argv) >= 3:
+        for a in sys.argv[2:]:
+            args_vals.append(ArkValue(a, "String"))
+
+    # Wrap in List struct [ArkValue, Ref] ?
+    # No, ArkValue(list_obj, "List")
+    # list_obj is Python list of ArkValues
+    scope.set("sys_args", ArkValue(args_vals, "List"))
     
     # 3. Evaluate
     try:
