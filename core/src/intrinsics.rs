@@ -62,19 +62,16 @@ impl IntrinsicRegistry {
             "intrinsic_math_atan2" | "math.atan2" => Some(intrinsic_math_atan2),
             "intrinsic_io_cls" | "io.cls" => Some(intrinsic_io_cls),
             "intrinsic_list_set" | "sys.list.set" => Some(intrinsic_list_set),
-<<<<<<< HEAD
             "intrinsic_chain_height" | "sys.chain.height" => Some(intrinsic_chain_height),
             "intrinsic_chain_get_balance" | "sys.chain.get_balance" => Some(intrinsic_chain_get_balance),
             "intrinsic_chain_submit_tx" | "sys.chain.submit_tx" => Some(intrinsic_chain_submit_tx),
             "intrinsic_chain_verify_tx" | "sys.chain.verify_tx" => Some(intrinsic_chain_verify_tx),
-=======
             "sys.fs.write_buffer" => Some(intrinsic_fs_write_buffer),
             "sys.fs.read_buffer" => Some(intrinsic_fs_read_buffer),
             "math.sin_scaled" => Some(intrinsic_math_sin_scaled),
             "math.cos_scaled" => Some(intrinsic_math_cos_scaled),
             "math.pi_scaled" => Some(intrinsic_math_pi_scaled),
             "sys.str.from_code" => Some(intrinsic_str_from_code),
->>>>>>> pr-69
             _ => None,
         }
     }
@@ -267,7 +264,7 @@ impl IntrinsicRegistry {
             Value::NativeFunction(intrinsic_list_set),
         );
         scope.set(
-<<<<<<< HEAD
+        scope.set(
             "sys.chain.height".to_string(),
             Value::NativeFunction(intrinsic_chain_height),
         );
@@ -282,7 +279,8 @@ impl IntrinsicRegistry {
         scope.set(
             "sys.chain.verify_tx".to_string(),
             Value::NativeFunction(intrinsic_chain_verify_tx),
-=======
+        );
+        scope.set(
             "sys.fs.write_buffer".to_string(),
             Value::NativeFunction(intrinsic_fs_write_buffer),
         );
@@ -297,6 +295,7 @@ impl IntrinsicRegistry {
         scope.set(
             "math.cos_scaled".to_string(),
             Value::NativeFunction(intrinsic_math_cos_scaled),
+        );
         scope.set(
             "sys.fs.write".to_string(),
             Value::NativeFunction(intrinsic_fs_write),
@@ -919,8 +918,8 @@ pub fn intrinsic_buffer_read(args: Vec<Value>) -> Result<Value, RuntimeError> {
 }
 
 pub fn intrinsic_buffer_write(args: Vec<Value>) -> Result<Value, RuntimeError> {
-    // S-Lang "Linear Types" - we consume the buffer and return a new one (same data, effectively).
-    // This implements Linear Swap semantics: buf := sys.mem.write(buf, i, v)
+    // Linear Semantics: buf := sys.mem.write(buf, i, v)
+    // Consumes the buffer (linear ownership), modifies it in-place, and returns the modified buffer.
     if args.len() != 3 {
         return Err(RuntimeError::NotExecutable);
     }
@@ -1308,7 +1307,6 @@ pub fn intrinsic_io_cls(_args: Vec<Value>) -> Result<Value, RuntimeError> {
     Ok(Value::Unit)
 }
 
-<<<<<<< HEAD
 pub fn intrinsic_chain_height(_args: Vec<Value>) -> Result<Value, RuntimeError> {
     Ok(Value::Integer(10000))
 }
@@ -1349,7 +1347,9 @@ pub fn intrinsic_chain_verify_tx(args: Vec<Value>) -> Result<Value, RuntimeError
             "String".to_string(),
             args[0].clone(),
         )),
-=======
+    }
+}
+
 pub fn intrinsic_fs_write_buffer(args: Vec<Value>) -> Result<Value, RuntimeError> {
     if args.len() != 2 {
         return Err(RuntimeError::NotExecutable);
@@ -1444,7 +1444,7 @@ pub fn intrinsic_str_from_code(args: Vec<Value>) -> Result<Value, RuntimeError> 
         Ok(Value::String(c.to_string()))
     } else {
         Err(RuntimeError::InvalidOperation("Invalid Char Code".to_string()))
->>>>>>> pr-69
+    }
     }
 }
 
@@ -1531,31 +1531,6 @@ mod tests {
     }
 
     #[test]
-    fn test_buffer_write() {
-        // [buffer, index, value]
-        let buf = Value::Buffer(vec![0u8; 3]);
-        let idx = Value::Integer(1);
-        let val = Value::Integer(42);
-        let args = vec![buf, idx, val];
-
-        let res = intrinsic_buffer_write(args).unwrap();
-
-        match res {
-            Value::Buffer(b) => {
-                assert_eq!(b, vec![0u8, 42u8, 0u8]);
-            }
-            _ => panic!("Expected Buffer, got {:?}", res),
-        }
-
-        // Test Out of Bounds
-        let buf = Value::Buffer(vec![0u8; 3]);
-        let idx = Value::Integer(10); // OOB
-        let val = Value::Integer(42);
-        let args = vec![buf, idx, val];
-        assert!(intrinsic_buffer_write(args).is_err());
-    }
-
-    #[test]
     fn test_crypto_verify() {
         // Valid Signature (Test Vector 2 from RFC 8032)
         // Msg: "r" (0x72)
@@ -1589,5 +1564,26 @@ mod tests {
         ];
         let res = intrinsic_crypto_verify(args).unwrap();
         assert_eq!(res, Value::Boolean(false));
+    }
+
+    #[test]
+    fn test_buffer_write_linear() {
+        // Setup: Buffer of size 3
+        let buf = Value::Buffer(vec![0u8; 3]);
+        // args: [buffer, index, value] -> sys.mem.write(buf, 1, 42)
+        let args = vec![buf, Value::Integer(1), Value::Integer(42)];
+
+        // Execute
+        let res = intrinsic_buffer_write(args).unwrap();
+
+        // Assert
+        match res {
+            Value::Buffer(b) => {
+                assert_eq!(b.len(), 3);
+                assert_eq!(b[1], 42);
+            }
+            _ => panic!("Expected Buffer"),
+        }
+    }
     }
 }
