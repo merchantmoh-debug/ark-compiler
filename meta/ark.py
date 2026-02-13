@@ -242,6 +242,12 @@ def math_cos_scaled(args: List[ArkValue]):
 def math_pi_scaled(args: List[ArkValue]):
     return ArkValue(314159, "Integer")
 
+def sys_exit(args: List[ArkValue]):
+    code = 0
+    if len(args) > 0 and args[0].type == "Integer":
+        code = args[0].val
+    sys.exit(code)
+
 def detect_ai_mode():
     global ARK_AI_MODE
     if ARK_AI_MODE:
@@ -1563,6 +1569,9 @@ INTRINSICS = {
     "intrinsic_buffer_write": sys_mem_write,
     "intrinsic_crypto_hash": sys_crypto_hash,
     "intrinsic_extract_code": extract_code,
+    "sys.exit": sys_exit,
+    "exit": sys_exit,
+    "quit": sys_exit,
     # "intrinsic_ge": ... (handled by lambdas which we can't easily inline here without recreating them)
     # We will just merge the two dictionaries or keep this simple
 }

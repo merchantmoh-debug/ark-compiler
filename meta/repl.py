@@ -71,6 +71,7 @@ def run_repl():
     # Pre-populate true/false for convenience
     scope.set("true", ark.ArkValue(True, "Boolean"))
     scope.set("false", ark.ArkValue(False, "Boolean"))
+    scope.set("math", ark.ArkValue("math", "Namespace"))
 
     # Load Grammar
     grammar_path = os.path.join(os.path.dirname(__file__), "ark.lark")
