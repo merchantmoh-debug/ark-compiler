@@ -8,20 +8,16 @@
 
 use crate::runtime::{NativeFn, RuntimeError, Scope, Value};
 #[cfg(not(target_arch = "wasm32"))]
-use reqwest::Client;
+use reqwest::blocking::Client;
 #[cfg(not(target_arch = "wasm32"))]
 use std::sync::OnceLock;
-#[cfg(not(target_arch = "wasm32"))]
-use tokio::runtime::Runtime;
 use serde_json::json;
 use std::fs;
 use std::process::Command;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 #[cfg(not(target_arch = "wasm32"))]
-static RUNTIME: OnceLock<Runtime> = OnceLock::new();
-#[cfg(not(target_arch = "wasm32"))]
-static CLIENT: OnceLock<Client> = OnceLock::new();
+static AI_CLIENT: OnceLock<Client> = OnceLock::new();
 
 pub struct IntrinsicRegistry;
 
@@ -361,14 +357,12 @@ pub fn intrinsic_ask_ai(args: Vec<Value>) -> Result<Value, RuntimeError> {
             api_key
         );
 
-        let runtime = RUNTIME.get_or_init(|| {
-            Runtime::new().expect("Failed to create Tokio runtime")
-        });
-
-        let client = CLIENT.get_or_init(|| {
+        // Optimization: Reuse Client (Connection Pool)
+        let client = AI_CLIENT.get_or_init(|| {
             Client::builder()
+                .timeout(Duration::from_secs(30))
                 .build()
-                .expect("Failed to create HTTP client")
+                .unwrap_or_else(|_| Client::new())
         });
 
         let payload = json!({
