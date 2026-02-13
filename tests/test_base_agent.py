@@ -3,6 +3,7 @@ import sys
 from unittest.mock import MagicMock, patch
 
 # Mock missing dependencies BEFORE importing src modules
+# This allows tests to run without google-genai or pydantic installed
 mock_genai = MagicMock()
 sys.modules["google"] = MagicMock()
 sys.modules["google.genai"] = mock_genai
@@ -34,6 +35,9 @@ def test_execute_basic():
     """Test basic execution without context."""
     agent = BaseAgent(role="tester", system_prompt="You are a tester.")
     task = "Hello, world!"
+
+    # Ensure clean state
+    agent.reset_history()
 
     response = agent.execute(task)
 
@@ -69,6 +73,7 @@ def test_execute_with_context():
     assert "You are a tester." not in full_prompt
     assert "Task: Test with context" in full_prompt
     assert "Context from other agents:" in full_prompt
+    # Check strict formatting
     assert "[researcher]: Found some info" in full_prompt
     assert "[coder]: Wrote some code" in full_prompt
 
@@ -85,27 +90,21 @@ def test_execute_error_handling():
     # Mock an exception in generate_content
     agent.client.models.generate_content = MagicMock(side_effect=Exception("Connection failed"))
 
+    # Clear history before test
+    agent.reset_history()
+
     response = agent.execute("Fail task")
 
     assert response == "[tester] Error executing task: Connection failed"
-    # History should not be updated on error (according to current implementation)
-    # Actually, current implementation DOES update history if it succeeds, but not if it fails.
-    # Let's check the code:
-    # try:
-    #     response = self.client.models.generate_content(...)
-    #     result = ...
-    #     self.conversation_history.append(...)
-    #     return result
-    # except Exception as e:
-    #     return ...
-    # So history is NOT updated on exception.
+    # History should not be updated on error
     assert len(agent.conversation_history) == 0
 
 def test_reset_history():
     """Test clearing conversation history."""
     agent = BaseAgent(role="tester", system_prompt="You are a tester.")
-    agent.execute("Task 1")
-    assert len(agent.conversation_history) == 2
+    # Add manual history
+    agent.conversation_history.append({"role": "user", "content": "foo"})
+    assert len(agent.conversation_history) == 1
 
     agent.reset_history()
     assert len(agent.conversation_history) == 0
@@ -117,6 +116,10 @@ if __name__ == "__main__":
         print("test_execute_basic: PASSED")
         test_execute_with_context()
         print("test_execute_with_context: PASSED")
+        test_execute_empty_context()
+        print("test_execute_empty_context: PASSED")
+        test_execute_response_fallback()
+        print("test_execute_response_fallback: PASSED")
         test_execute_error_handling()
         print("test_execute_error_handling: PASSED")
         test_reset_history()
