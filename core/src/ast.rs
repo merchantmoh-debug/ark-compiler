@@ -28,6 +28,8 @@ use sha2::{Digest, Sha256};
 pub enum AstError {
     #[error("Serialization error: {0}")]
     Serialization(#[from] bincode::Error),
+    #[error("JSON error: {0}")]
+    Json(#[from] serde_json::Error),
 }
 
 /// Merkle-ized Abstract Syntax Tree Node
