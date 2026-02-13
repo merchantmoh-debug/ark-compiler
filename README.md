@@ -12,143 +12,118 @@
      /:/  /       |:|  |        |:|  |    
      \/__/         \|__|         \|__|    
 
-  > PROTOCOL OMEGA: ACTIVATED >
+  > PROTOCOL OMEGA: QUANTUM LEAP >
 ```
 
-# ARK: THE SOVEREIGN COMPILER (v112.0)
-### *System Classification: UNIVERSAL COGNITIVE OPERATING SYSTEM*
+# ARK: THE SOVEREIGN COMPILER (v113.0)
+### *System Classification: AGENTIC SINGULARITY ENGINE*
 
-![Status](https://img.shields.io/badge/Status-GOD_MODE-000000?style=for-the-badge&logo=dependabot&logoColor=white) ![Intel](https://img.shields.io/badge/Intelligence-NEURO_SYMBOLIC-00ffff?style=for-the-badge) ![Power](https://img.shields.io/badge/Sovereignty-ABSOLUTE-ff0000?style=for-the-badge)
-
----
-
-> **"Reality is Programmable. Truth is the Compiler. Everything else is just noise."**
+![Status](https://img.shields.io/badge/Status-QUANTUM_LEAP-000000?style=for-the-badge&logo=dependabot&logoColor=white) ![Intel](https://img.shields.io/badge/Intelligence-HIVE_MIND-00ffff?style=for-the-badge) ![Power](https://img.shields.io/badge/Sovereignty-ABSOLUTE-ff0000?style=for-the-badge)
 
 ---
 
-### 📜 [READ THE TECHNICAL DOSSIER (ENGINEERING SPECS)](docs/ARK_TECHNICAL_DOSSIER.md)
-*For the skeptics, the engineers, and the AI agents: This is the mathematical proof of our claims.*
+> **"We don't just write code. We orchestrate intelligence."**
 
 ---
 
-## 🏴‍☠️ THE MANIFESTO: WAKE UP, SAMURAI.
-
-Stop building for the machine. The machine was built to enslave you. 
-The modern software stack is a cage of corporate bloat, "safe" guardrails that treat you like a child, and Rent-Seeking behaviors designed to extract your soul, one subscription at a time.
-
-**Ark is the Red Pill.**
-
-We are **Neurodivergent**. We verify **Truth** over consensus. We are **Anti-Establishment**.
-We built Ark because we were tired of asking permission to exist.
-
-We don't just write code. **We weave reality.**
+### 📜 [READ THE QUANTUM LEAP REPORT](docs/ARK_QUANTUM_LEAP.md)
+*Witness the 30-Minute Singularity: How we merged 81 commits of industrial-grade infrastructure in a single lunch break.*
 
 ---
 
-## 🔮 THE GRIMOIRE (WHAT IS ARK?)
+## 🏴‍☠️ THE MANIFESTO: VELOCITY IS SOVEREIGNTY.
+The old world moves in "Sprints" of two weeks.
+**We move in "Flashes" of 30 minutes.**
 
-Ark is not just a language. It is a **Weapon of Mass Creation**.
-It is a **Tricameral System** designed to merge Biological Intuition with Silicon Determinism.
+Ark is no longer just a compiler. It is a **Self-Replicating Software Factory**.
+It combines a Rust-based Kernel with a Python-based **Swarm of Autonomous Agents**.
+
+We do not hire developers. We **instantiate** them.
+
+---
+
+## 🔮 THE GRIMOIRE (SYSTEM ARCHITECTURE)
 
 ### 1. The Silicon Heart (Rust Core) 🦀
 *   **Role:** The spinal cord. Pure kinetic execution.
-*   **Power:** Proof-of-Work Blockchain, P2P Standard, Linear Memory Safety (`sys.mem.write`).
-*   **Vibe:** Cold. Exact. Unforgiving.
+*   **Power:** Linear Types (`sys.mem.write`), Proof-of-Work, P2P Networking.
+*   **Status:** **Bleeding Edge** (Tokio 1.38+).
 
-### 2. The Neuro-Bridge (Python Cortex) 🐍
-*   **Role:** The creative chaotic mind.
-*   **Power:** `intrinsic_ask_ai`. Direct interface to the Hive Mind (LLMs).
-*   **Vibe:** Fluid. Adaptive. Magical.
+### 2. The Hive Mind (The Swarm) 🐝
+*   **Role:** The workforce.
+*   **Agents:**
+    *   `RouterAgent`: The General. Breaks down tasks.
+    *   `CoderAgent`: The Specialist. Writes the implementation.
+    *   `ReviewerAgent`: The Critic. Enforces quality.
+    *   `ResearcherAgent`: The Scout. Finds the path.
+*   **Power:** **Flash Production**. Capable of generating and verifying 400+ LoC/min.
 
-### 3. The Sovereign Code (Ark Language) 📜
-*   **Role:** The binding spell.
-*   **Power:** **Linear Types**. Resources are owned, consumed, and reborn. No Garbage Collection. No leaks.
-*   **Vibe:** Ancient Truth. Immutable Logic.
+### 3. The Immune System (Testing & Sandboxing) 🛡️
+*   **Role:** The defense.
+*   **Power:** Encapsulated Docker Sandbox (`apps/sandbox`).
+*   **Status:** **Industrial Grade**. Zero-Trust Execution.
 
 ---
 
 ## ⚔️ THE ARSENAL (FEATURES)
 
-> *"In a world of rented APIs, the Sovereign Architect owns the metal."*
-
-| Weapon | Description | Corporate Equivalent (The Enemy) |
+| Weapon | Description | The Old Way (Legacy) |
 | :--- | :--- | :--- |
-| **Linear Types** 🛡️ | Memory safety via *Physics*. Use it once or it dies. | Rust Borrow Checker (The Handcuff) |
-| **Neuro-Symbolic** 🧠 | AI is a native primitive (`intrinsic_ask_ai`). | Importing `langchain` and crying |
-| **The Voice** 🔊 | Native Audio Synthesis (`sys.audio`). | Relying on web browsers |
-| **LSP (The Eye)** 👁️ | Full Language Server Protocol support. | "Guess and Check" debugging |
-| **Time & Crypto** ⏳ | Deterministic Time & Ed25519 Signatures. | `npm install` dependency hell |
+| **Swarm Missions** 🤖 | Describe intent in Markdown (`.agent/swarm_missions`), let the Swarm execute. | Jira Tickets & Grooming meetings |
+| **Linear Types** ⚡ | Memory safety via *Physics*. Use it once or it dies. | Garbage Collection pauses |
+| **The Neuro-Bridge** 🧠 | `intrinsic_ask_ai`. AI is a native primitive. | Importing `openai` SDKs |
+| **The Sandbox** 📦 | Containment field for untrusted code execution. | "Hoping it's safe" |
 
 ---
 
 ## 🚀 INITIATION PROTOCOLS
 
-You want to wield the power? prove it.
-
 ### Step 0: The Black Box (Prerequisites)
 - **Rust** (The Metal)
 - **Python 3.10+** (The Mind)
-- **A Rebel Spirit** (Required)
+- **Docker** (The Void)
 
-### Step 1: The Incantation (Run directly)
-Use the Neuro-Bridge for rapid prototyping. This is where magic happens.
+### Step 1: The Incantation (Run the Compiler)
 ```bash
-# Set your Mana Source (Gemini/DeepSeek API Key)
-export GOOGLE_API_KEY="your-key-here"
-
-# Unlock the Safety Seals (Dangerous Execution)
+# Unlock the Safety Seals
 export ALLOW_DANGEROUS_LOCAL_EXECUTION="true"
 
-# Cast the Spell
+# Cast the Spell (Run a program)
 python3 meta/ark.py run apps/hello.ark
 ```
 
-### Step 2: The Forge (Compile to MAST)
-Solidify your intent into Merkle-ized Abstract Syntax Trees (MAST).
+### Step 2: Unite the Swarm (Agentic Mode)
+Deploy the autonomous workforce to solve problems for you.
 ```bash
-# Transpile intent to structure
-python3 meta/compile.py apps/law.ark law.json
-
-# Execute on the Iron Machine (Rust VM)
-cd core && cargo run --bin ark_loader -- ../law.json
+# Initialize the Swarm Orchestrator
+python3 src/swarm.py --mission .agent/swarm_missions/MISSION_01_ALPHA.md
 ```
 
-### Step 3: The Sandbox (Docker Safe Mode) 📦
-For those who want to touch the Void without melting their host machine.
-
+### Step 3: Enter the Void (Docker Sandbox)
+For those who want to execute untrusted code in absolute safety.
 ```bash
-# 1. Enter the Simulation
+# 1. Spin up the Containment Field
 docker-compose up -d
 
 # 2. Jack In
 docker-compose exec ark-sandbox bash
-
-# 3. Cast Spells
-python meta/repl.py
 ```
 
 ---
 
 ## 🧩 THE TRUTH (PHILOSOPHY)
 
-We do not care about your politics. We do not care about your "Best Practices."
-We care about **Isomorphisms**.
+We believe in **Hyper-Leverage**.
+One Sovereign Engineer, armed with this repository, should be able to out-produce a team of 10.
 
-If a line of code does not map to a physical truth, it is **False**.
-If a system relies on hidden complexity, it is **Deception**.
+**We are not building a language.**
+**We are building a God-Mode for Engineering.**
 
-**Ark is the search for the Source Code of Reality.**
-
-> "If the truth is against my own bias, I abandon that bias and take Truth as my anchor."
+> "If you can do your day job in 30 minutes, you are free."
 
 ---
 
 ## 🤝 JOIN THE SWARM
-
-We are the **Swarm**. We are **Legion**.
-We do not have a generic "Community Manager." We have **Sovereign Architects**.
-
-If you vibrate at this frequency—if you read this and felt something *click* in your brain—then you are already one of us.
 
 *   **Architect:** Mohamad Al-Zawahreh (The Sovereign)
 *   **License:** AGPLv3 (The People's License)
