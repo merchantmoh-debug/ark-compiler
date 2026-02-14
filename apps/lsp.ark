@@ -852,12 +852,18 @@ func read_header() {
         } else {
              match := true
              prefix := "Content-Length:"
-             i := 0
-             while i < 15 {
-                 let (c, _) := sys.str.get(line, i)
-                 let (p, _) := sys.str.get(prefix, i)
-                 if c != p { match := false }
-                 i := i + 1
+             
+             let (len_line, _) := sys.len(line)
+             if len_line < 15 {
+                 match := false
+             } else {
+                 i := 0
+                 while i < 15 {
+                     let (c, _) := sys.str.get(line, i)
+                     let (p, _) := sys.str.get(prefix, i)
+                     if c != p { match := false }
+                     i := i + 1
+                 }
              }
 
              if match {

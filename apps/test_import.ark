@@ -7,7 +7,7 @@ println("[Test] IO Module Loaded Successfully.")
 // Test Math
 x := 10
 y := 2
-p := pow(x, y)
+p := math.pow(x, y)
 
 print("[Test] Math.pow(10, 2) = ")
 println(p)

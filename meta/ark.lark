@@ -6,6 +6,9 @@ start: (statement | function_def | class_def)+
 ?statement: assignment
           | flow_stmt
           | expression
+          | import_stmt
+
+import_stmt: "import" IDENTIFIER ("." IDENTIFIER)*
 
 // --- Definitions ---
 function_def: "func" IDENTIFIER "(" [param_list] ")" "{" block "}"
