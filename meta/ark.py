@@ -194,22 +194,53 @@ COMMAND_WHITELIST = {
 }
 
 def sys_exec(args: List[ArkValue]):
+    check_exec_security()
     if not args or args[0].type != "String":
         raise Exception("sys.exec expects a string command")
-    command = args[0].val.strip()
-    if not command:
-        raise Exception("sys.exec received empty command")
+    
+    command_str = args[0].val.strip()
+    if not command_str:
+        return ArkValue("", "String")
 
-    # Whitelist Check
+    # 1. Parse command safely (respects quotes)
+    try:
+        # Use shlex to parse the command string into a list of arguments.
+        # posix=(os.name != 'nt') ensures proper handling of quotes and escapes relative to the OS.
+        cmd_args = shlex.split(command_str, posix=(os.name != 'nt'))
+    except Exception as e:
+        return ArkValue(f"Security Error: Failed to parse command: {e}", "String")
+
+    if not cmd_args:
+        return ArkValue("", "String")
+
+    base_cmd = cmd_args[0]
+
+    # 2. Whitelist Check (Now effective because we use the parsed base_cmd)
     if os.environ.get("ALLOW_DANGEROUS_LOCAL_EXECUTION", "false").lower() != "true":
-        base_cmd = command.split()[0]
         if base_cmd not in COMMAND_WHITELIST:
+             # This message is now accurate because we are executing `base_cmd` directly, not passing a string to shell.
              raise SandboxViolation(f"Command '{base_cmd}' is not in the whitelist. set ALLOW_DANGEROUS_LOCAL_EXECUTION=true to bypass.")
 
-    # print(f"WARNING: Executing system command: {command}", file=sys.stderr)
+    # 3. Execution (shell=False prevents '&&' injection)
+    # The vulnerability SimiKusoni found (ls && rm -rf) is neutralized here because 
+    # '&&', 'rm', '-rf' will be passed as arguments to 'ls' (which will likely complain about them),
+    # rather than being interpreted by the shell as a new command.
     try:
-        result = os.popen(command).read()
-        return ArkValue(result, "String")
+        # capture_output=True requires Python 3.7+
+        result = subprocess.run(
+            cmd_args, 
+            shell=False, 
+            capture_output=True, 
+            text=True,
+            timeout=10 # Prevent hangs
+        )
+        
+        # Combine stdout and stderr
+        output = result.stdout
+        if result.stderr:
+            output += "\nHelper: " + result.stderr
+            
+        return ArkValue(output.strip(), "String")
     except Exception as e:
         return ArkValue(f"Error: {e}", "String")
 
