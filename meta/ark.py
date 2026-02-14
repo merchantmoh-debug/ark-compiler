@@ -1308,6 +1308,7 @@ def handle_get_attr(node, scope):
     attr = node.children[1].value
     if obj.type == "Namespace":
         new_path = f"{obj.val}.{attr}"
+        # print(f"DEBUG: Namespace Lookup: {new_path} in INTRINSICS? {new_path in INTRINSICS}", file=sys.stderr)
         if new_path in INTRINSICS:
             return ArkValue(new_path, "Intrinsic")
         return ArkValue(new_path, "Namespace")
@@ -1403,6 +1404,49 @@ def handle_get_item(node, scope):
         return ArkValue(int(collection.val[idx]), "Integer")
     raise Exception(f"Cannot index type {collection.type}")
 
+def handle_import(node, scope):
+    # import std.io -> lib/std/io.ark
+    parts = [t.value for t in node.children]
+    
+    # Construct relative path (std -> lib/std)
+    if parts[0] == "std":
+        # std.io -> lib/std/io.ark
+        rel_path = os.path.join("lib", *parts) + ".ark"
+    else:
+        rel_path = os.path.join(*parts) + ".ark"
+
+    if not os.path.exists(rel_path):
+        # Try local path
+        rel_path = os.path.join(*parts) + ".ark"
+    
+    if not os.path.exists(rel_path):
+        raise Exception(f"Import Error: Module {'.'.join(parts)} not found at {rel_path}")
+
+    # Check Idempotency via Root Scope
+    root = scope
+    while root.parent:
+        root = root.parent
+    
+    # Use vars instead of attribute because Scope has __slots__
+    if "__loaded_imports__" not in root.vars:
+        root.vars["__loaded_imports__"] = ArkValue(set(), "Set")
+    
+    loaded_set = root.vars["__loaded_imports__"].val
+    
+    abs_path = os.path.abspath(rel_path)
+    if abs_path in loaded_set:
+        return ArkValue(None, "Unit") # Already loaded
+    
+    loaded_set.add(abs_path)
+
+    # Load & Parse
+    with open(abs_path, "r") as f:
+        code = f.read()
+    
+    tree = ARK_PARSER.parse(code)
+    eval_node(tree, scope)
+    return ArkValue(None, "Unit")
+
 NODE_HANDLERS = {
     "start": handle_block,
     "block": handle_block,
@@ -1436,6 +1480,7 @@ NODE_HANDLERS = {
     "neq": handle_binop,
     "list_cons": handle_list_cons,
     "get_item": handle_get_item,
+    "import_stmt": handle_import,
 }
 
 def eval_node(node, scope):
@@ -1568,6 +1613,83 @@ def sys_vm_source(args: List[ArkValue], scope: Scope):
 
 
 
+
+# --- JSON & Type Conversion Helpers ---
+
+def to_python_val(val: ArkValue):
+    if val.type == "Integer": return val.val
+    if val.type == "String": return val.val
+    if val.type == "Boolean": return val.val
+    if val.type == "List": return [to_python_val(x) for x in val.val]
+    if val.type == "Instance":
+        # Convert struct to dict
+        return {k: to_python_val(v) for k, v in val.val.fields.items()}
+    if val.type == "Unit": return None
+    # Skip Functions/Classes/etc
+    return str(val.val)
+
+def from_python_val(val):
+    if val is None: return ArkValue(None, "Unit")
+    if isinstance(val, bool): return ArkValue(val, "Boolean")
+    if isinstance(val, int): return ArkValue(val, "Integer")
+    if isinstance(val, float): return ArkValue(int(val), "Integer") # Ark is Int only currently?
+    if isinstance(val, str): return ArkValue(val, "String")
+    if isinstance(val, list): return ArkValue([from_python_val(x) for x in val], "List")
+    if isinstance(val, dict):
+        # Struct (Instance with no class)
+        fields = {k: from_python_val(v) for k, v in val.items()}
+        return ArkValue(ArkInstance(None, fields), "Instance")
+    return ArkValue(str(val), "String")
+
+def sys_json_parse(args: List[ArkValue]):
+    if len(args) != 1 or args[0].type != "String":
+        raise Exception("sys.json.parse expects string")
+    try:
+        data = json.loads(args[0].val)
+        return from_python_val(data)
+    except Exception as e:
+        # LSP `read_header` calls `sys.json.parse(num_str)`.
+        raise Exception(f"JSON Parse Error: {e}")
+
+def sys_json_stringify(args: List[ArkValue]):
+    if len(args) != 1: raise Exception("sys.json.stringify expects value")
+    try:
+        data = to_python_val(args[0])
+        s = json.dumps(data)
+        return ArkValue(s, "String")
+    except Exception as e:
+        raise Exception(f"JSON Stringify Error: {e}")
+
+def sys_log(args: List[ArkValue]):
+    # Alias to print, but maybe to stderr?
+    # LSP uses it for logging.
+    s = " ".join([str(a.val) for a in args])
+    print(f"[LOG] {s}", file=sys.stderr)
+    return ArkValue(None, "Unit")
+
+def sys_io_read_bytes(args: List[ArkValue]):
+    if len(args) != 1 or args[0].type != "Integer":
+        raise Exception("sys.io.read_bytes expects integer length")
+    n = args[0].val
+    # Read n bytes from stdin.buffer
+    data = sys.stdin.buffer.read(n)
+    return ArkValue(data.decode('utf-8'), "String")
+
+def sys_io_read_line(args: List[ArkValue]):
+    if len(args) != 0:
+        raise Exception("sys.io.read_line expects no args")
+    line = sys.stdin.readline()
+    return ArkValue(line, "String")
+
+def sys_io_write(args: List[ArkValue]):
+    if len(args) != 1 or args[0].type != "String":
+        raise Exception("sys.io.write expects string")
+    s = args[0].val
+    sys.stdout.buffer.write(s.encode('utf-8'))
+    sys.stdout.buffer.flush()
+    return ArkValue(None, "Unit")
+
+
 INTRINSICS = {
     # Core
     "get": core_get,
@@ -1615,6 +1737,13 @@ INTRINSICS = {
     "sys.time.now": sys_time_now,
     "sys.time.sleep": sys_time_sleep,
     "sys.str.from_code": sys_str_from_code,
+    "sys.json.parse": sys_json_parse,
+    "sys.json.stringify": sys_json_stringify,
+    "sys.json.stringify": sys_json_stringify,
+    "sys.log": sys_log,
+    "sys.io.read_bytes": sys_io_read_bytes,
+    "sys.io.read_line": sys_io_read_line,
+    "sys.io.write": sys_io_write,
 
     # Math
     "math.sin_scaled": math_sin_scaled,
