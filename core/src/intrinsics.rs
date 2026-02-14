@@ -15,6 +15,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 #[cfg(not(target_arch = "wasm32"))]
+use shell_words;
+#[cfg(not(target_arch = "wasm32"))]
 use std::sync::OnceLock;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -355,10 +357,7 @@ pub fn intrinsic_ask_ai(args: Vec<Value>) -> Result<Value, RuntimeError> {
             RuntimeError::NotExecutable
         })?;
 
-        let url = format!(
-            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={}",
-            api_key
-        );
+        let url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent".to_string();
 
         // Optimization: Reuse Client (Connection Pool)
         let client = AI_CLIENT.get_or_init(|| {
@@ -385,7 +384,12 @@ pub fn intrinsic_ask_ai(args: Vec<Value>) -> Result<Value, RuntimeError> {
         rt.block_on(async {
             // Simple Retry Logic
             for attempt in 0..3 {
-                match client.post(&url).json(&payload).send() {
+                match client
+                    .post(&url)
+                    .header("x-goog-api-key", &api_key)
+                    .json(&payload)
+                    .send()
+                {
                     Ok(resp) => {
                         if resp.status().is_success() {
                             let json_resp = match resp.json::<serde_json::Value>() {
@@ -428,11 +432,43 @@ pub fn intrinsic_exec(args: Vec<Value>) -> Result<Value, RuntimeError> {
     if args.len() != 1 {
         return Err(RuntimeError::NotExecutable);
     }
-    let cmd_str = match &args[0] {
-        Value::String(s) => s,
+
+    // Support both String (legacy, parsed) and List (secure, explicit)
+    let (program, args_list) = match &args[0] {
+        Value::String(s) => {
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                let parts = shell_words::split(s).map_err(|_| RuntimeError::NotExecutable)?;
+                if parts.is_empty() {
+                    return Err(RuntimeError::NotExecutable);
+                }
+                (parts[0].clone(), parts[1..].to_vec())
+            }
+            #[cfg(target_arch = "wasm32")]
+            {
+                (s.clone(), vec![])
+            }
+        }
+        Value::List(l) => {
+            let mut parts = Vec::new();
+            for item in l {
+                if let Value::String(s) = item {
+                    parts.push(s.clone());
+                } else {
+                    return Err(RuntimeError::TypeMismatch(
+                        "String".to_string(),
+                        item.clone(),
+                    ));
+                }
+            }
+            if parts.is_empty() {
+                return Err(RuntimeError::NotExecutable);
+            }
+            (parts[0].clone(), parts[1..].to_vec())
+        }
         _ => {
             return Err(RuntimeError::TypeMismatch(
-                "String".to_string(),
+                "String or List".to_string(),
                 args[0].clone(),
             ));
         }
@@ -440,24 +476,19 @@ pub fn intrinsic_exec(args: Vec<Value>) -> Result<Value, RuntimeError> {
 
     #[cfg(target_arch = "wasm32")]
     {
-        println!("[Ark:WASM] Security Block: sys.exec('{}') denied.", cmd_str);
+        println!(
+            "[Ark:WASM] Security Block: sys.exec('{}') denied.",
+            program
+        );
         return Err(RuntimeError::NotExecutable);
     }
 
     #[cfg(not(target_arch = "wasm32"))]
     {
-        println!("[Ark:Exec] {}", cmd_str);
+        println!("[Ark:Exec] {} {:?}", program, args_list);
 
-        // Windows vs Unix
-        #[cfg(target_os = "windows")]
-        let mut cmd = Command::new("cmd");
-        #[cfg(target_os = "windows")]
-        cmd.args(["/C", cmd_str]);
-
-        #[cfg(not(target_os = "windows"))]
-        let mut cmd = Command::new("sh");
-        #[cfg(not(target_os = "windows"))]
-        cmd.args(["-c", cmd_str]);
+        let mut cmd = Command::new(&program);
+        cmd.args(&args_list);
 
         let output = cmd.output().map_err(|_| RuntimeError::NotExecutable)?;
 
