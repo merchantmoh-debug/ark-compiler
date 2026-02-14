@@ -18,6 +18,9 @@ from src.memory import MemoryManager
 from src.utils.dummy_client import DummyClient
 from src.tools.openai_proxy import call_openai_chat
 
+# Global cache for loaded tools to avoid repetitive filesystem scanning
+_TOOLS_CACHE: Optional[Dict[str, Callable[..., Any]]] = None
+
 
 class GeminiAgent:
     """
@@ -37,6 +40,7 @@ class GeminiAgent:
         self.memory = MemoryManager()
         self.mcp_manager = None  # Will be initialized if MCP is enabled
         self.use_openai_backend = False  # Use OpenAI-compatible backend when configured
+        self._context_cache: Optional[str] = None  # Cache for loaded context files
 
         # Dynamically load all tools from src/tools/ directory
         self.available_tools: Dict[str, Callable[..., Any]] = self._load_tools()
@@ -141,6 +145,10 @@ class GeminiAgent:
         Returns:
             Dictionary mapping tool names to callable functions.
         """
+        global _TOOLS_CACHE
+        if _TOOLS_CACHE is not None:
+            return _TOOLS_CACHE.copy()
+
         tools = {}
 
         # Get the src/tools directory path relative to this file
@@ -180,7 +188,8 @@ class GeminiAgent:
             except Exception as e:
                 print(f"   ⚠️ Failed to load tools from {tool_file.name}: {e}")
 
-        return tools
+        _TOOLS_CACHE = tools
+        return tools.copy()
 
     def _load_context(self) -> str:
         """
@@ -193,6 +202,9 @@ class GeminiAgent:
         Returns:
             Concatenated content of all .md files in .context/ directory.
         """
+        if self._context_cache is not None:
+            return self._context_cache
+
         context_parts = []
 
         # Get the .context directory path relative to project root
@@ -200,6 +212,7 @@ class GeminiAgent:
         context_dir = Path(__file__).parent.parent / ".context"
 
         if not context_dir.exists():
+            self._context_cache = ""
             return ""
 
         # Load all markdown files
@@ -217,7 +230,8 @@ class GeminiAgent:
         if context_parts:
             print(f"   📚 Loaded context from {len(context_parts)} file(s)")
 
-        return "\n".join(context_parts)
+        self._context_cache = "\n".join(context_parts)
+        return self._context_cache
 
     def _get_tool_descriptions(self) -> str:
         """
