@@ -1,71 +1,66 @@
 import os
+import shutil
+import subprocess
+import sys
+
+def run_command(cmd, cwd=None):
+    print(f"Running: {' '.join(cmd)}")
+    subprocess.check_call(cmd, cwd=cwd)
 
 def build_site():
-    # Determine base directories
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    # Assuming script is in site/
-    site_dir = script_dir
-    # Assuming web/ is sibling to site/
-    web_dir = os.path.join(os.path.dirname(script_dir), 'web')
+    root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    site_dir = os.path.join(root_dir, 'site')
+    wasm_dir = os.path.join(site_dir, 'wasm')
+    core_dir = os.path.join(root_dir, 'core')
+    apps_dir = os.path.join(root_dir, 'apps')
+    meta_dir = os.path.join(root_dir, 'meta')
 
-    print(f"Building site from {web_dir} to {site_dir}...")
+    print(f"Build Root: {root_dir}")
 
-    # 1. Ensure site/js exists
-    js_dir = os.path.join(site_dir, 'js')
-    os.makedirs(js_dir, exist_ok=True)
-    print(f"Ensured {js_dir} exists.")
+    # 1. Compile WASM
+    print("\n[1/4] Compiling Core to WASM...")
+    run_command(['cargo', 'build', '--target', 'wasm32-unknown-unknown', '--release'], cwd=core_dir)
 
-    # 2. Process index.html
-    web_index = os.path.join(web_dir, 'index.html')
-    site_index = os.path.join(site_dir, 'index.html')
+    # 2. Prepare Directories
+    print("\n[2/4] Preparing site directories...")
+    os.makedirs(wasm_dir, exist_ok=True)
 
-    if not os.path.exists(web_index):
-        print(f"Error: {web_index} does not exist.")
-        return
+    # 3. Copy Assets
+    print("\n[3/4] Copying Assets...")
 
-    with open(web_index, 'r', encoding='utf-8') as f:
-        content = f.read()
-
-    # Replace script tag
-    old_script = '<script src="main.js"></script>'
-    new_script = '<script src="js/main.js"></script>'
-
-    if old_script in content:
-        content = content.replace(old_script, new_script)
-        print(f"Updated script tag in index.html")
+    # Copy WASM
+    src_wasm = os.path.join(root_dir, 'target', 'wasm32-unknown-unknown', 'release', 'ark_0_zheng.wasm')
+    dst_wasm = os.path.join(wasm_dir, 'ark.wasm')
+    if os.path.exists(src_wasm):
+        shutil.copy2(src_wasm, dst_wasm)
+        print(f"Copied WASM to {dst_wasm}")
     else:
-        print(f"WARNING: Could not find '{old_script}' in index.html")
+        print(f"ERROR: WASM artifact not found at {src_wasm}")
+        sys.exit(1)
 
-    with open(site_index, 'w', encoding='utf-8') as f:
-        f.write(content)
-    print(f"Wrote {site_index}")
+    # 4. Compile Snake Logic
+    print("\n[4/4] Compiling Snake Game Logic...")
+    snake_src = os.path.join(apps_dir, 'snake_browser.ark')
+    snake_json = os.path.join(site_dir, 'snake.json')
+    compiler_script = os.path.join(meta_dir, 'ark_to_json.py')
 
-    # 3. Process main.js
-    web_js = os.path.join(web_dir, 'main.js')
-    site_js = os.path.join(js_dir, 'main.js')
+    if not os.path.exists(snake_src):
+        print(f"ERROR: Snake source not found at {snake_src}")
+        sys.exit(1)
 
-    if not os.path.exists(web_js):
-        print(f"Error: {web_js} does not exist.")
-        return
+    run_command([sys.executable, compiler_script, snake_src, snake_json])
 
-    with open(web_js, 'r', encoding='utf-8') as f:
-        js_content = f.read()
-
-    # Replace WASM path
-    old_wasm = "const WASM_PATH = '../target/wasm32-unknown-unknown/release/ark_0_zheng.wasm';"
-    new_wasm = "const WASM_PATH = 'wasm/ark.wasm';"
-
-    if old_wasm in js_content:
-        js_content = js_content.replace(old_wasm, new_wasm)
-        print(f"Updated WASM_PATH in main.js")
+    # Set Snake as Index
+    snake_html = os.path.join(site_dir, 'snake.html')
+    index_html = os.path.join(site_dir, 'index.html')
+    if os.path.exists(snake_html):
+        shutil.copy2(snake_html, index_html)
+        print(f"Set {snake_html} as {index_html}")
     else:
-        print(f"WARNING: Could not find WASM_PATH definition in main.js")
+        print(f"ERROR: snake.html not found at {snake_html}")
+        sys.exit(1)
 
-    with open(site_js, 'w', encoding='utf-8') as f:
-        f.write(js_content)
-    print(f"Wrote {site_js}")
-
-    print("Build complete.")
+    print("\nBuild Complete. Ready for Deployment.")
 
 if __name__ == "__main__":
     build_site()
