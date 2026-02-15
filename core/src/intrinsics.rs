@@ -9,6 +9,7 @@
 use crate::runtime::{NativeFn, RuntimeError, Scope, Value};
 #[cfg(not(target_arch = "wasm32"))]
 use reqwest::blocking::Client;
+use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -54,6 +55,7 @@ impl IntrinsicRegistry {
             "intrinsic_buffer_write" | "sys.mem.write" => Some(intrinsic_buffer_write),
             "intrinsic_list_get" | "sys.list.get" | "sys.str.get" => Some(intrinsic_list_get),
             "intrinsic_list_append" | "sys.list.append" => Some(intrinsic_list_append),
+            "intrinsic_list_pop" | "sys.list.pop" => Some(intrinsic_list_pop),
             "intrinsic_len" | "sys.len" => Some(intrinsic_len),
             "intrinsic_struct_get" | "sys.struct.get" => Some(intrinsic_struct_get),
             "intrinsic_struct_set" | "sys.struct.set" => Some(intrinsic_struct_set),
@@ -179,6 +181,10 @@ impl IntrinsicRegistry {
         scope.set(
             "sys.list.append".to_string(),
             Value::NativeFunction(intrinsic_list_append),
+        );
+        scope.set(
+            "intrinsic_list_pop".to_string(),
+            Value::NativeFunction(intrinsic_list_pop),
         );
         scope.set(
             "sys.struct.get".to_string(),
@@ -478,6 +484,7 @@ pub fn intrinsic_exec(args: Vec<Value>) -> Result<Value, RuntimeError> {
     // Support both String (legacy, parsed) and List (secure, explicit)
     let (program, args_list) = match &args[0] {
         Value::String(s) => {
+            println!("[Ark:Exec] WARNING: usage of sys.exec(String) is deprecated for security. Use sys.exec([cmd, arg1, ...]).");
             #[cfg(not(target_arch = "wasm32"))]
             {
                 let parts = shell_words::split(s).map_err(|_| RuntimeError::NotExecutable)?;
@@ -1166,6 +1173,33 @@ pub fn intrinsic_list_append(args: Vec<Value>) -> Result<Value, RuntimeError> {
             // Linear append: Modify in place if we owned it (we do, because args passed by value)
             list.push(item);
             Ok(Value::List(list))
+        }
+        _ => Err(RuntimeError::TypeMismatch("List".to_string(), list_val)),
+    }
+}
+
+pub fn intrinsic_list_pop(args: Vec<Value>) -> Result<Value, RuntimeError> {
+    if args.len() != 2 {
+        return Err(RuntimeError::NotExecutable);
+    }
+    let mut args = args;
+    let idx_val = args.pop().unwrap();
+    let list_val = args.pop().unwrap();
+
+    let index = match idx_val {
+        Value::Integer(n) => n,
+        _ => return Err(RuntimeError::TypeMismatch("Integer".to_string(), idx_val)),
+    };
+
+    match list_val {
+        Value::List(mut list) => {
+            if index < 0 || index >= list.len() as i64 {
+                return Err(RuntimeError::NotExecutable);
+            }
+            // Linear Pop: Remove element. This is O(N) for middle elements, O(1) for end.
+            // Returns [val, list]
+            let val = list.remove(index as usize);
+            Ok(Value::List(vec![val, Value::List(list)]))
         }
         _ => Err(RuntimeError::TypeMismatch("List".to_string(), list_val)),
     }
@@ -1902,5 +1936,33 @@ mod tests {
          } else {
              println!("Skipping read traversal test because ../Cargo.toml not found");
          }
+    }
+
+    #[test]
+    fn test_list_pop() {
+        // [1, 2, 3] pop(1) -> 2, list becomes [1, 3]
+        let list = Value::List(vec![
+            Value::Integer(1),
+            Value::Integer(2),
+            Value::Integer(3),
+        ]);
+        let args = vec![list, Value::Integer(1)];
+        let res = intrinsic_list_pop(args).unwrap();
+
+        match res {
+            Value::List(items) => {
+                assert_eq!(items.len(), 2);
+                assert_eq!(items[0], Value::Integer(2)); // Popped value
+                match &items[1] {
+                    Value::List(l) => {
+                        assert_eq!(l.len(), 2);
+                        assert_eq!(l[0], Value::Integer(1));
+                        assert_eq!(l[1], Value::Integer(3));
+                    },
+                    _ => panic!("Expected List as second item"),
+                }
+            },
+            _ => panic!("Expected List result"),
+        }
     }
 }
