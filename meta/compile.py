@@ -64,6 +64,33 @@ class ArkCompiler(Transformer):
 
     # BinOps
     def _handle_binop(self, op_name, items):
+        # OPTIMIZATION: Constant Folding
+        # Check if both operands are constants (ArkValue wrapper over constant)
+        def get_constant_value(node):
+            if (isinstance(node, ast.Call) and
+                isinstance(node.func, ast.Name) and
+                node.func.id == 'ArkValue' and
+                len(node.args) == 2 and
+                isinstance(node.args[0], ast.Constant) and
+                isinstance(node.args[1], ast.Constant)):
+                return node.args[0].value, node.args[1].value
+            return None, None
+
+        left_val, left_type = get_constant_value(items[0])
+        right_val, right_type = get_constant_value(items[1])
+
+        if left_val is not None and right_val is not None:
+            if left_type == "Integer" and right_type == "Integer":
+                res = None
+                if op_name == "add": res = left_val + right_val
+                elif op_name == "sub": res = left_val - right_val
+                elif op_name == "mul": res = left_val * right_val
+                elif op_name == "div": res = left_val // right_val if right_val != 0 else 0
+
+                if res is not None:
+                    # Return pre-computed constant instead of runtime call
+                    return self._create_ark_value(ast.Constant(value=res), "Integer")
+
         return ast.Call(
             func=ast.Name(id='eval_binop', ctx=ast.Load()),
             args=[ast.Constant(value=op_name), items[0], items[1]],

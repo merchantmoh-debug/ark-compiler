@@ -122,6 +122,17 @@ def cmd_audit(args):
     else:
         print(f"{Colors.OKGREEN}No obvious security issues found.{Colors.ENDC}")
 
+def cmd_repl(args):
+    print(f"{Colors.OKCYAN}[ARK] Launching REPL...{Colors.ENDC}")
+    try:
+        from meta.repl import run_repl
+        run_repl()
+    except Exception as e:
+        print(f"{Colors.FAIL}Error launching REPL: {e}{Colors.ENDC}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+
 def main():
     parser = argparse.ArgumentParser(description="Ark Sovereign System CLI")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -136,6 +147,10 @@ def main():
     parser_run.add_argument("--jit", action="store_true", help="Enable JIT Compiler (Experimental)")
     parser_run.add_argument("script_args", nargs=argparse.REMAINDER, help="Arguments for the script")
     parser_run.set_defaults(func=cmd_run)
+
+    # Repl
+    parser_repl = subparsers.add_parser("repl", help="Start Interactive Shell")
+    parser_repl.set_defaults(func=cmd_repl)
 
     # Audit
     parser_audit = subparsers.add_parser("audit", help="Audit an Ark script for security")
