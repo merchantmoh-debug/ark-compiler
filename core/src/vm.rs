@@ -114,6 +114,34 @@ impl<'a> VM<'a> {
         })
     }
 
+    /// Calls a public function by name with the given arguments.
+    /// This is used by the host environment (e.g., WASM, FFI) to invoke specific Ark functions.
+    pub fn call_public_function(&mut self, name: &str, args: Vec<Value>) -> Result<Value, String> {
+        // 1. Find the function
+        let func = self
+            .find_var(name)
+            .ok_or_else(|| format!("Function '{}' not found", name))?;
+
+        // 2. Push Arguments
+        let arg_count = args.len();
+        for arg in args {
+            self.stack.push(arg);
+        }
+
+        // 3. Push Function
+        self.stack.push(func);
+
+        // 4. Trigger Call (sets up frame, ip, chunk)
+        // Note: op_call pops the function, then the arguments.
+        // So Stack must be: [Arg1, Arg2, ... ArgN, Func]
+        // This matches our push order above.
+        // op_call(arg_count) expects `arg_count` arguments on the stack below the function.
+        self.op_call(arg_count)?;
+
+        // 5. Run the VM until return
+        self.run()
+    }
+
     pub fn run(&mut self) -> Result<Value, String> {
         loop {
             if self.ip >= self.chunk.code.len() {
@@ -528,4 +556,29 @@ mod tests {
         let mut vm = VM::new(chunk, "HASH", 0).unwrap();
         let result = vm.run();
         assert_eq!(result.unwrap(), Value::Integer(42));
+    }
+
+    #[test]
+    fn test_vm_call_function_external() {
+        // Define a function that adds 1 to its argument
+        let mut func_chunk = Chunk::new();
+        // Stack on entry: [arg]
+        func_chunk.write(OpCode::Store("n".to_string()));
+        func_chunk.write(OpCode::Load("n".to_string()));
+        func_chunk.write(OpCode::Push(Value::Integer(1)));
+        func_chunk.write(OpCode::Add);
+        func_chunk.write(OpCode::Ret);
+
+        let mut chunk = Chunk::new();
+        chunk.write(OpCode::Push(Value::Function(Rc::new(func_chunk))));
+        chunk.write(OpCode::Store("add_one".to_string()));
+        chunk.write(OpCode::Ret); // Main finishes
+
+        let mut vm = VM::new(chunk, "HASH", 0).unwrap();
+        // Run main to define the function
+        let _ = vm.run().unwrap();
+
+        // Now call the function externally
+        let result = vm.call_public_function("add_one", vec![Value::Integer(99)]).unwrap();
+        assert_eq!(result, Value::Integer(100));
     }
