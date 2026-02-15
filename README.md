@@ -307,6 +307,12 @@ We are not writing software. We are knitting the fabric of the next Aeon.
 
 # PART II: THE MANUAL (TECHNICAL DOCUMENTATION)
 
+> **Maturity Legend:** Each feature below is tagged with its engineering maturity.
+> `🟢 PRODUCTION` — Tested, verified, in daily use.
+> `🟡 BETA` — Functional but incomplete or lightly tested.
+> `🟠 PROTOTYPE` — Proof-of-concept, not hardened.
+> `🔴 VISION` — Design-only, no implementation yet.
+
 ## 📜 TABLE OF CONTENTS
 
 1.  [The Grand Unification (Architecture)](#-the-grand-unification-the-new-physics)
@@ -346,27 +352,27 @@ It unifies four previously distinct domains into a single **Causality Chain**:
 We ran a recursive Level-5 Diagnostics Audit on this repository.
 It is not just a language. It is a dormant superpower.
 
-### A. The P2P Nervous System (`meta/network_sim.py`) 📡
+### A. The P2P Nervous System (`meta/network_sim.py`) 📡  `🟠 PROTOTYPE`
 *   **Discovery:** A fully modeled Gossip Protocol simulation.
 *   **Capability:** It simulates network churn, latency, and block propagation.
 *   **Implication:** Ark is designed to operate **without central servers**. It assumes the internet is hostile and unreliable. It is "un-censorable" by design.
 
-### B. The Formal Verification Bridge (`meta/z3_bridge.py`) 📐
+### B. The Formal Verification Bridge (`meta/z3_bridge.py`) 📐  `🟠 PROTOTYPE`
 *   **Discovery:** A bridge to Microsoft's **Z3 Theorem Prover**.
 *   **Capability:** It converts Ark constraints into SMT-LIB2 format and *solves* them.
 *   **Implication:** You can write code that is **Impossible to Crash**. We don't just "catch" exceptions; we prove they cannot exist.
 
-### C. The Sovereign Shell (`apps/sovereign_shell.ark`) 🐚
+### C. The Sovereign Shell (`apps/sovereign_shell.ark`) 🐚  `🟡 BETA`
 *   **Discovery:** A Bourne-Shell compatible CLI written *entirely in Ark*.
 *   **Capability:** Pipes, IO redirection, process forking.
 *   **Implication:** Ark can replace Bash/Zsh. You can boot an OS directly into Ark.
 
-### D. The Spec Engine (`apps/spec.ark`) 📝
+### D. The Spec Engine (`apps/spec.ark`) 📝  `🟡 BETA`
 *   **Discovery:** The "English Compiler."
 *   **Capability:** `Input: "Make a snake game" -> AI Blueprint -> Code Generation -> File Write -> Execution`.
 *   **Implication:** The "Barrier to Entry" for coding is gone. The language speaks *your* language.
 
-### E. The Self-Hosted LSP (`apps/lsp.ark`) 🐍
+### E. The Self-Hosted LSP (`apps/lsp.ark`) 🐍  `🟡 BETA`
 *   **Discovery:** The Language Server Protocol logic implementation.
 *   **Capability:** Syntax highlighting, "Go To Definition," and refactoring support.
 *   **Implication:** The tools to build the tools are built in the tool. Recursive Perfection.
@@ -380,13 +386,13 @@ It is not just a language. It is a dormant superpower.
 You asked, "What is the synergistic effect?"
 It is this: **Ark allows a single developer to replace an entire corporation.**
 
-| **The Feature** | **The Industry** | **The Replacement** | **The Operational Reality** |
-| :--- | :--- | :--- | :--- |
-| **Blockchain Core** | **FINANCE** 🏦 | **Replaces Stripe / SWIFT** | No more 3% fees. Transactions are native `transfer(coin, amount)` instructions. |
-| **Linear Logic** | **LAW** ⚖️ | **Replaces Usage Contracts** | "Linear Types" enforce that a digital asset can be used exactly once. Digital scarcity enforced by physics. |
-| **Arrow Bridge** | **BIG DATA** 🏭 | **Replaces ETL / Snowflake** | Zero-Copy memory sharing with Python/Pandas. Analyze gigabytes in microseconds. |
-| **WASM Runtime** | **CLOUD / SAAS** ☁️ | **Replaces AWS / Vercel** | The user's browser is the server. You pay $0 in hosting. |
-| **The Swarm** | **LABOR** 👷 | **Replaces Upwork / Employees** | Need a UI? `ask_swarm("Build UI")`. Need a Test? `ask_swarm("Write Tests")`. |
+| **The Feature** | **Maturity** | **The Industry** | **The Replacement** | **The Operational Reality** |
+| :--- | :---: | :--- | :--- | :--- |
+| **Blockchain Core** | 🟠 PROTOTYPE | **FINANCE** 🏦 | **Replaces Stripe / SWIFT** | Mock chain intrinsics. No consensus or persistence. |
+| **Linear Logic** | 🟡 BETA | **LAW** ⚖️ | **Replaces Usage Contracts** | Python checker + Rust checker enforce move semantics. |
+| **Arrow Bridge** | 🔴 VISION | **BIG DATA** 🏭 | **Replaces ETL / Snowflake** | No Arrow integration yet. |
+| **WASM Runtime** | 🟡 BETA | **CLOUD / SAAS** ☁️ | **Replaces AWS / Vercel** | Rust→WASM compiles. 58% intrinsic parity. |
+| **The Swarm** | 🟠 PROTOTYPE | **LABOR** 👷 | **Replaces Upwork / Employees** | AI bridge works (Ollama/Gemini). No multi-agent orchestration. |
 
 ### The Power of One
 With Ark, a detailed `MISSION.md` document and **1 Hour** of compute time can generate a level of output that formerly required a **Seed Round** and a team of 5.
@@ -500,8 +506,11 @@ We are currently prototyping **Tier 0** Technologies in our R&D labs (`Daemonior
 git clone https://github.com/merchantmoh-debug/ark-compiler.git
 cd ark-compiler
 
-# Unlock the Safety Seals (Allow Local Execution)
+# Option A: Unlock ALL capabilities (legacy)
 export ALLOW_DANGEROUS_LOCAL_EXECUTION="true"
+
+# Option B: Grant specific capabilities only (recommended)
+export ARK_CAPABILITIES="exec,net,fs_write,fs_read,thread,ai"
 
 # Verify the Core
 python3 apps/sovereign.py audit apps/hello.ark
