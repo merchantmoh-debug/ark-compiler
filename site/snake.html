@@ -13,17 +13,24 @@
 <body>
     <h1>Ark Sovereign Snake</h1>
     <canvas id="game" width="400" height="400"></canvas>
+    <div id="controls" style="margin-top: 10px;">
+        <button id="btn-pause">Pause (P)</button>
+        <button id="btn-restart">Restart (R)</button>
+    </div>
     <div id="status">Loading WASM...</div>
 
     <script type="module">
         const canvas = document.getElementById('game');
         const ctx = canvas.getContext('2d');
         const status = document.getElementById('status');
+        const btnPause = document.getElementById('btn-pause');
+        const btnRestart = document.getElementById('btn-restart');
         const SCALE = 20;
 
         let wasm = null;
         let gameState = null;
         let lastInput = "None";
+        let isPaused = false;
 
         // --- WASM Bridge ---
         async function loadArk() {
@@ -154,7 +161,7 @@
         function loop(timestamp) {
             if (!gameState) return;
 
-            if (timestamp - lastTime > TICK_RATE) {
+            if (!isPaused && timestamp - lastTime > TICK_RATE) {
                 // Update
                 if (!gameState.game_over) {
                     const newState = callWasmJson(wasm.ark_call, "update", [gameState, lastInput]);
@@ -220,9 +227,46 @@
         // --- Input ---
         window.addEventListener('keydown', e => {
             if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
-                lastInput = e.key;
+                if (!isPaused) lastInput = e.key;
                 e.preventDefault();
             }
+            if (e.key.toLowerCase() === 'p') togglePause();
+            if (e.key.toLowerCase() === 'r') restartGame();
+        });
+
+        function togglePause() {
+            isPaused = !isPaused;
+            btnPause.innerText = isPaused ? "Resume (P)" : "Pause (P)";
+            status.innerText = isPaused ? "Paused" : "Running";
+        }
+
+        function restartGame() {
+            if (!wasm) return;
+            // Re-init game state
+            const initRes = callWasmJson(wasm.ark_call, "init", []);
+            if (initRes.error) {
+                console.error(initRes.error);
+                return;
+            }
+            gameState = initRes;
+            lastInput = "None";
+            isPaused = false;
+            btnPause.innerText = "Pause (P)";
+            status.innerText = "Running";
+            // Clear Canvas for visual feedback
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        btnPause.addEventListener('click', () => {
+            togglePause();
+            // Remove focus so space/arrow keys work for game not button
+            btnPause.blur();
+        });
+
+        btnRestart.addEventListener('click', () => {
+            restartGame();
+            btnRestart.blur();
         });
 
         // Start

@@ -15,23 +15,42 @@ import os
 # External consumers (gauntlet.py, compile.py, tests) can still do:
 #   from ark import ArkValue, Scope, INTRINSICS, eval_node, etc.
 
-from ark_types import (
-    RopeString, ArkValue, UNIT_VALUE, ReturnException,
-    ArkFunction, ArkClass, ArkInstance, Scope
-)
-from ark_security import (
-    SandboxViolation, LinearityViolation,
-    check_path_security, check_exec_security, validate_url_security,
-    SafeRedirectHandler, check_capability, has_capability, CAPABILITIES
-)
-from ark_intrinsics import (
-    INTRINSICS, LINEAR_SPECS, INTRINSICS_WITH_SCOPE,
-    _make_late_intrinsics, EVENT_QUEUE
-)
-from ark_interpreter import (
-    eval_node, call_user_func, instantiate_class, eval_block,
-    is_truthy, eval_binop, ARK_PARSER, NODE_HANDLERS
-)
+try:
+    from meta.ark_types import (
+        RopeString, ArkValue, UNIT_VALUE, ReturnException,
+        ArkFunction, ArkClass, ArkInstance, Scope
+    )
+    from meta.ark_security import (
+        SandboxViolation, LinearityViolation,
+        check_path_security, check_exec_security, validate_url_security,
+        SafeRedirectHandler, check_capability, has_capability, CAPABILITIES
+    )
+    from meta.ark_intrinsics import (
+        INTRINSICS, LINEAR_SPECS, INTRINSICS_WITH_SCOPE,
+        _make_late_intrinsics, EVENT_QUEUE
+    )
+    from meta.ark_interpreter import (
+        eval_node, call_user_func, instantiate_class, eval_block,
+        is_truthy, eval_binop, ARK_PARSER, NODE_HANDLERS
+    )
+except ImportError:
+    from ark_types import (
+        RopeString, ArkValue, UNIT_VALUE, ReturnException,
+        ArkFunction, ArkClass, ArkInstance, Scope
+    )
+    from ark_security import (
+        SandboxViolation, LinearityViolation,
+        check_path_security, check_exec_security, validate_url_security,
+        SafeRedirectHandler, check_capability, has_capability, CAPABILITIES
+    )
+    from ark_intrinsics import (
+        INTRINSICS, LINEAR_SPECS, INTRINSICS_WITH_SCOPE,
+        _make_late_intrinsics, EVENT_QUEUE
+    )
+    from ark_interpreter import (
+        eval_node, call_user_func, instantiate_class, eval_block,
+        is_truthy, eval_binop, ARK_PARSER, NODE_HANDLERS
+    )
 
 
 # ─── Wire Late Intrinsics ────────────────────────────────────────────────────

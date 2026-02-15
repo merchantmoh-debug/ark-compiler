@@ -28,14 +28,24 @@ from cryptography.hazmat.primitives.asymmetric import ed25519
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
-from ark_types import (
-    ArkValue, UNIT_VALUE, ArkFunction, ArkClass, ArkInstance, Scope,
-    ReturnException, RopeString, ArkValue
-)
-from ark_security import (
-    SandboxViolation, check_path_security, check_exec_security,
-    validate_url_security, SafeRedirectHandler, check_capability, has_capability
-)
+try:
+    from meta.ark_types import (
+        ArkValue, UNIT_VALUE, ArkFunction, ArkClass, ArkInstance, Scope,
+        ReturnException, RopeString
+    )
+    from meta.ark_security import (
+        SandboxViolation, check_path_security, check_exec_security,
+        validate_url_security, SafeRedirectHandler, check_capability, has_capability
+    )
+except ImportError:
+    from ark_types import (
+        ArkValue, UNIT_VALUE, ArkFunction, ArkClass, ArkInstance, Scope,
+        ReturnException, RopeString
+    )
+    from ark_security import (
+        SandboxViolation, check_path_security, check_exec_security,
+        validate_url_security, SafeRedirectHandler, check_capability, has_capability
+    )
 
 
 # --- Global Event Queue ---
@@ -629,9 +639,12 @@ def sys_list_pop(args: List[ArkValue]):
     lst = args[0]
     idx = args[1].val
     if lst.type != "List": raise Exception("sys.list.pop expects List")
-    if idx < 0 or idx >= len(lst.val): return UNIT_VALUE
+    if idx < 0 or idx >= len(lst.val):
+        raise Exception("Index out of bounds")
     val = lst.val.pop(idx)
-    return val
+    # Linear Return: [popped_val, original_list]
+    # In Python, list is ref, so lst is modified in place. But we return it to satisfy linear flow.
+    return ArkValue([val, lst], "List")
 
 def sys_list_delete(args: List[ArkValue]):
     if len(args) != 2: raise Exception("sys.list.delete expects list, index")
