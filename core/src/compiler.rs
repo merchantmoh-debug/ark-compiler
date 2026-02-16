@@ -1,7 +1,7 @@
 use crate::ast::{ArkNode, Expression, Statement};
 use crate::bytecode::{Chunk, OpCode};
 use crate::runtime::Value;
-use std::rc::Rc;
+use std::sync::Arc;
 
 pub struct Compiler {
     pub chunk: Chunk, // Made public for recursive access
@@ -70,8 +70,8 @@ impl Compiler {
 
                 let compiled_chunk = func_compiler.chunk;
 
-                // 5. Emit Push(Value::Function(Rc::new(chunk)))
-                let func_val = Value::Function(Rc::new(compiled_chunk));
+                // 5. Emit Push(Value::Function(Arc::new(chunk)))
+                let func_val = Value::Function(Arc::new(compiled_chunk));
                 self.chunk.write(OpCode::Push(func_val));
 
                 // 6. Store function in variable with its name
@@ -98,6 +98,10 @@ impl Compiler {
                 }
 
                 let after_then_idx = self.chunk.code.len();
+                // We need to update the jump offset. Since we are using usize as offset in bytecode (Jmp(usize)),
+                // we can just set it to the index.
+                // Note: core/src/bytecode.rs defines OpCode::Jmp(usize) and JmpIfFalse(usize).
+                // So we can mutate the instruction.
                 self.chunk.code[jump_idx] = OpCode::JmpIfFalse(after_then_idx);
 
                 if let Some(stmts) = else_block {
@@ -107,6 +111,8 @@ impl Compiler {
                     // after_then_idx IS the start of else block code (or Jmp(0) instruction?).
                     // No, else_jump_idx is where Jmp(0) is.
                     // after_then_idx is AFTER Jmp(0). So it is start of else block. Correct.
+
+                    // The instruction at else_jump_idx is Jmp(0). We need to update it to jump to end.
 
                     for s in stmts {
                         self.visit_stmt(s);

@@ -1,7 +1,7 @@
 use crate::bytecode::{Chunk, OpCode};
 use crate::intrinsics;
 use crate::runtime::{RuntimeError, Scope, Value};
-use std::rc::Rc;
+use std::sync::Arc;
 
 // --- GraphArena Implementation ---
 
@@ -79,7 +79,7 @@ pub enum GraphData {
 #[derive(Debug, Clone)]
 pub struct CallFrame {
     pub ip: usize,
-    pub chunk: Rc<Chunk>,
+    pub chunk: Arc<Chunk>,
 }
 
 pub struct VM<'a> {
@@ -88,7 +88,7 @@ pub struct VM<'a> {
     pub scopes: Vec<Scope<'a>>, // Stack of scopes (Frames)
     pub frames: Vec<usize>,     // Stack of frame indices into heap
     pub ip: usize,
-    pub chunk: Rc<Chunk>,
+    pub chunk: Arc<Chunk>,
     pub security_level: u8,
 }
 
@@ -109,7 +109,7 @@ impl<'a> VM<'a> {
             scopes: vec![global_scope],
             frames: Vec::new(),
             ip: 0,
-            chunk: Rc::new(chunk),
+            chunk: Arc::new(chunk),
             security_level,
         })
     }
@@ -479,7 +479,7 @@ mod tests {
         // Manually simulate a call frame allocation
         let frame = CallFrame {
             ip: 0,
-            chunk: Rc::new(Chunk::new()),
+            chunk: Arc::new(Chunk::new()),
         };
         let idx = vm.heap.alloc(GraphData::Frame(frame));
 
@@ -494,7 +494,6 @@ mod tests {
         let node = vm.heap.get(idx);
         assert!(node.is_none());
     }
-}
 
     #[test]
     fn test_vm_complex_ops() {
@@ -545,7 +544,7 @@ mod tests {
         func_chunk.write(OpCode::Ret);
 
         let mut chunk = Chunk::new();
-        chunk.write(OpCode::Push(Value::Function(Rc::new(func_chunk))));
+        chunk.write(OpCode::Push(Value::Function(Arc::new(func_chunk))));
         chunk.write(OpCode::Store("add_one".to_string()));
 
         chunk.write(OpCode::Push(Value::Integer(41)));
@@ -570,7 +569,7 @@ mod tests {
         func_chunk.write(OpCode::Ret);
 
         let mut chunk = Chunk::new();
-        chunk.write(OpCode::Push(Value::Function(Rc::new(func_chunk))));
+        chunk.write(OpCode::Push(Value::Function(Arc::new(func_chunk))));
         chunk.write(OpCode::Store("add_one".to_string()));
         chunk.write(OpCode::Ret); // Main finishes
 
@@ -582,3 +581,4 @@ mod tests {
         let result = vm.call_public_function("add_one", vec![Value::Integer(99)]).unwrap();
         assert_eq!(result, Value::Integer(100));
     }
+}
