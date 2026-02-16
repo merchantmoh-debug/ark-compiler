@@ -12,18 +12,18 @@ use regex::Regex;
 use reqwest::blocking::Client;
 #[cfg(not(target_arch = "wasm32"))]
 use shell_words;
+use std::collections::{HashMap, VecDeque};
 use std::env;
 use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::Mutex;
 #[cfg(not(target_arch = "wasm32"))]
 use std::sync::OnceLock;
 use std::thread;
+
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use std::sync::Mutex;
-use std::thread;
-use std::collections::{HashMap, VecDeque};
 
 use aes_gcm::{
     Aes256Gcm, Nonce,
@@ -37,15 +37,17 @@ use rand::rngs::OsRng;
 use sha2::{Digest, Sha512};
 
 #[cfg(not(target_arch = "wasm32"))]
-use std::collections::HashMap;
-#[cfg(not(target_arch = "wasm32"))]
-use std::io::{Read, Write};
+use std::io::Read;
 #[cfg(not(target_arch = "wasm32"))]
 use std::net::{TcpListener, TcpStream};
 #[cfg(not(target_arch = "wasm32"))]
 use std::sync::atomic::{AtomicI64, Ordering};
+
 #[cfg(not(target_arch = "wasm32"))]
-use std::sync::Mutex;
+pub enum SocketResource {
+    Listener(TcpListener),
+    Stream(TcpStream),
+}
 
 #[cfg(not(target_arch = "wasm32"))]
 static AI_CLIENT: OnceLock<Client> = OnceLock::new();
@@ -161,7 +163,6 @@ impl IntrinsicRegistry {
                 Some(intrinsic_io_read_file_async)
             }
             "sys.extract_code" | "intrinsic_extract_code" => Some(intrinsic_extract_code),
-
             // Networking Intrinsics
             "net.http.request" | "intrinsic_http_request" => Some(intrinsic_http_request),
             "net.http.serve" | "intrinsic_http_serve" => Some(intrinsic_http_serve),
@@ -174,7 +175,6 @@ impl IntrinsicRegistry {
             "net.socket.set_timeout" | "intrinsic_socket_set_timeout" => {
                 Some(intrinsic_socket_set_timeout)
             }
-
             // Advanced Runtime
             "sys.thread.spawn" => Some(intrinsic_thread_spawn),
             "sys.thread.join" => Some(intrinsic_thread_join),
@@ -473,18 +473,31 @@ impl IntrinsicRegistry {
             "sys.fs.write".to_string(),
             Value::NativeFunction(intrinsic_fs_write),
         );
-        scope.set(
-            "sys.fs.write".to_string(),
-            Value::NativeFunction(intrinsic_fs_write),
-        );
-
         // Advanced Runtime Registration
-        scope.set("sys.thread.spawn".to_string(), Value::NativeFunction(intrinsic_thread_spawn));
-        scope.set("sys.thread.join".to_string(), Value::NativeFunction(intrinsic_thread_join));
-        scope.set("sys.event.poll".to_string(), Value::NativeFunction(intrinsic_event_poll));
-        scope.set("sys.event.push".to_string(), Value::NativeFunction(intrinsic_event_push));
-        scope.set("sys.func.apply".to_string(), Value::NativeFunction(intrinsic_func_apply));
-        scope.set("sys.vm.eval".to_string(), Value::NativeFunction(intrinsic_vm_eval));
+        scope.set(
+            "sys.thread.spawn".to_string(),
+            Value::NativeFunction(intrinsic_thread_spawn),
+        );
+        scope.set(
+            "sys.thread.join".to_string(),
+            Value::NativeFunction(intrinsic_thread_join),
+        );
+        scope.set(
+            "sys.event.poll".to_string(),
+            Value::NativeFunction(intrinsic_event_poll),
+        );
+        scope.set(
+            "sys.event.push".to_string(),
+            Value::NativeFunction(intrinsic_event_push),
+        );
+        scope.set(
+            "sys.func.apply".to_string(),
+            Value::NativeFunction(intrinsic_func_apply),
+        );
+        scope.set(
+            "sys.vm.eval".to_string(),
+            Value::NativeFunction(intrinsic_vm_eval),
+        );
         scope.set(
             "sys.time.sleep".to_string(),
             Value::NativeFunction(intrinsic_time_sleep),
@@ -510,7 +523,7 @@ impl IntrinsicRegistry {
             Value::NativeFunction(intrinsic_extract_code),
         );
         /*
-        */
+         */
 
         // Networking Intrinsics
         scope.set(
@@ -2556,34 +2569,51 @@ pub fn intrinsic_http_request(args: Vec<Value>) -> Result<Value, RuntimeError> {
 
         let method = match &args[0] {
             Value::String(s) => s.as_str(),
-            _ => return Err(RuntimeError::TypeMismatch("String".to_string(), args[0].clone())),
+            _ => {
+                return Err(RuntimeError::TypeMismatch(
+                    "String".to_string(),
+                    args[0].clone(),
+                ));
+            }
         };
 
         let url = match &args[1] {
             Value::String(s) => s.as_str(),
-            _ => return Err(RuntimeError::TypeMismatch("String".to_string(), args[1].clone())),
+            _ => {
+                return Err(RuntimeError::TypeMismatch(
+                    "String".to_string(),
+                    args[1].clone(),
+                ));
+            }
         };
 
         let request = ureq::request(method, url);
 
         let result = if args.len() > 2 {
-             match &args[2] {
-                 Value::String(body) => request.send_string(body),
-                 _ => return Err(RuntimeError::TypeMismatch("String".to_string(), args[2].clone())),
-             }
+            match &args[2] {
+                Value::String(body) => request.send_string(body),
+                _ => {
+                    return Err(RuntimeError::TypeMismatch(
+                        "String".to_string(),
+                        args[2].clone(),
+                    ));
+                }
+            }
         } else {
-             request.call()
+            request.call()
         };
 
         let handle_response = |response: ureq::Response| -> Result<Value, RuntimeError> {
             let status = response.status() as i64;
             let mut headers_map = HashMap::new();
             for name in response.headers_names() {
-                 if let Some(value) = response.header(&name) {
-                     headers_map.insert(name, Value::String(value.to_string()));
-                 }
+                if let Some(value) = response.header(&name) {
+                    headers_map.insert(name, Value::String(value.to_string()));
+                }
             }
-            let body = response.into_string().map_err(|_| RuntimeError::NotExecutable)?;
+            let body = response
+                .into_string()
+                .map_err(|_| RuntimeError::NotExecutable)?;
             let mut resp_struct = HashMap::new();
             resp_struct.insert("status".to_string(), Value::Integer(status));
             resp_struct.insert("body".to_string(), Value::String(body));
@@ -2613,7 +2643,12 @@ pub fn intrinsic_http_serve(args: Vec<Value>) -> Result<Value, RuntimeError> {
         }
         let port = match &args[0] {
             Value::Integer(i) => *i as u16,
-            _ => return Err(RuntimeError::TypeMismatch("Integer".to_string(), args[0].clone())),
+            _ => {
+                return Err(RuntimeError::TypeMismatch(
+                    "Integer".to_string(),
+                    args[0].clone(),
+                ));
+            }
         };
 
         let listener = TcpListener::bind(format!("0.0.0.0:{}", port))
@@ -2624,7 +2659,9 @@ pub fn intrinsic_http_serve(args: Vec<Value>) -> Result<Value, RuntimeError> {
 
         // Read request
         // We'll read what's available or set a timeout.
-        stream.set_read_timeout(Some(Duration::from_millis(1000))).ok();
+        stream
+            .set_read_timeout(Some(Duration::from_millis(1000)))
+            .ok();
 
         let mut buffer = [0; 4096];
         let n = stream.read(&mut buffer).unwrap_or(0);
@@ -2644,8 +2681,13 @@ pub fn intrinsic_socket_bind(args: Vec<Value>) -> Result<Value, RuntimeError> {
             return Err(RuntimeError::NotExecutable);
         }
         let port = match &args[0] {
-             Value::Integer(i) => *i as u16,
-             _ => return Err(RuntimeError::TypeMismatch("Integer".to_string(), args[0].clone())),
+            Value::Integer(i) => *i as u16,
+            _ => {
+                return Err(RuntimeError::TypeMismatch(
+                    "Integer".to_string(),
+                    args[0].clone(),
+                ));
+            }
         };
 
         let listener = TcpListener::bind(format!("0.0.0.0:{}", port))
@@ -2665,32 +2707,41 @@ pub fn intrinsic_socket_accept(args: Vec<Value>) -> Result<Value, RuntimeError> 
 
     #[cfg(not(target_arch = "wasm32"))]
     {
-         if args.len() != 1 {
+        if args.len() != 1 {
             return Err(RuntimeError::NotExecutable);
-         }
-         let id = match &args[0] {
-             Value::Integer(i) => *i,
-             _ => return Err(RuntimeError::TypeMismatch("Integer".to_string(), args[0].clone())),
-         };
+        }
+        let id = match &args[0] {
+            Value::Integer(i) => *i,
+            _ => {
+                return Err(RuntimeError::TypeMismatch(
+                    "Integer".to_string(),
+                    args[0].clone(),
+                ));
+            }
+        };
 
-         // We need to release the lock while accepting, otherwise we block all network ops.
-         // BUT we can't easily clone TcpListener.
-         // Rust TcpListener `try_clone` exists.
-         let listener_clone = {
-             let sockets = get_sockets().lock().unwrap();
-             match sockets.get(&id) {
-                 Some(SocketResource::Listener(l)) => l.try_clone().map_err(|_| RuntimeError::NotExecutable)?,
-                 _ => return Err(RuntimeError::InvalidOperation("Not a listener".to_string())),
-             }
-         };
+        // We need to release the lock while accepting, otherwise we block all network ops.
+        // BUT we can't easily clone TcpListener.
+        // Rust TcpListener `try_clone` exists.
+        let listener_clone = {
+            let sockets = get_sockets().lock().unwrap();
+            match sockets.get(&id) {
+                Some(SocketResource::Listener(l)) => {
+                    l.try_clone().map_err(|_| RuntimeError::NotExecutable)?
+                }
+                _ => return Err(RuntimeError::InvalidOperation("Not a listener".to_string())),
+            }
+        };
 
-         let (stream, _) = listener_clone.accept().map_err(|_| RuntimeError::NotExecutable)?;
+        let (stream, _) = listener_clone
+            .accept()
+            .map_err(|_| RuntimeError::NotExecutable)?;
 
-         let new_id = SOCKET_ID_COUNTER.fetch_add(1, Ordering::SeqCst);
-         let mut sockets = get_sockets().lock().unwrap();
-         sockets.insert(new_id, SocketResource::Stream(stream));
+        let new_id = SOCKET_ID_COUNTER.fetch_add(1, Ordering::SeqCst);
+        let mut sockets = get_sockets().lock().unwrap();
+        sockets.insert(new_id, SocketResource::Stream(stream));
 
-         Ok(Value::Integer(new_id))
+        Ok(Value::Integer(new_id))
     }
 }
 
@@ -2700,14 +2751,26 @@ pub fn intrinsic_socket_connect(args: Vec<Value>) -> Result<Value, RuntimeError>
 
     #[cfg(not(target_arch = "wasm32"))]
     {
-        if args.len() != 2 { return Err(RuntimeError::NotExecutable); }
+        if args.len() != 2 {
+            return Err(RuntimeError::NotExecutable);
+        }
         let host = match &args[0] {
             Value::String(s) => s.clone(),
-            _ => return Err(RuntimeError::TypeMismatch("String".to_string(), args[0].clone())),
+            _ => {
+                return Err(RuntimeError::TypeMismatch(
+                    "String".to_string(),
+                    args[0].clone(),
+                ));
+            }
         };
         let port = match &args[1] {
             Value::Integer(i) => *i as u16,
-            _ => return Err(RuntimeError::TypeMismatch("Integer".to_string(), args[1].clone())),
+            _ => {
+                return Err(RuntimeError::TypeMismatch(
+                    "Integer".to_string(),
+                    args[1].clone(),
+                ));
+            }
         };
 
         let stream = TcpStream::connect(format!("{}:{}", host, port))
@@ -2727,24 +2790,39 @@ pub fn intrinsic_socket_send(args: Vec<Value>) -> Result<Value, RuntimeError> {
 
     #[cfg(not(target_arch = "wasm32"))]
     {
-        if args.len() != 2 { return Err(RuntimeError::NotExecutable); }
+        if args.len() != 2 {
+            return Err(RuntimeError::NotExecutable);
+        }
         let id = match &args[0] {
-             Value::Integer(i) => *i,
-             _ => return Err(RuntimeError::TypeMismatch("Integer".to_string(), args[0].clone())),
+            Value::Integer(i) => *i,
+            _ => {
+                return Err(RuntimeError::TypeMismatch(
+                    "Integer".to_string(),
+                    args[0].clone(),
+                ));
+            }
         };
         let data = match &args[1] {
             Value::String(s) => s.as_bytes().to_vec(),
             Value::Buffer(b) => b.clone(),
-            _ => return Err(RuntimeError::TypeMismatch("String or Buffer".to_string(), args[1].clone())),
+            _ => {
+                return Err(RuntimeError::TypeMismatch(
+                    "String or Buffer".to_string(),
+                    args[1].clone(),
+                ));
+            }
         };
 
         let mut sockets = get_sockets().lock().unwrap();
         match sockets.get_mut(&id) {
-             Some(SocketResource::Stream(s)) => {
-                 s.write_all(&data).map_err(|_| RuntimeError::NotExecutable)?;
-                 Ok(Value::Integer(data.len() as i64))
-             }
-             _ => Err(RuntimeError::InvalidOperation("Invalid socket or not a stream".to_string())),
+            Some(SocketResource::Stream(s)) => {
+                s.write_all(&data)
+                    .map_err(|_| RuntimeError::NotExecutable)?;
+                Ok(Value::Integer(data.len() as i64))
+            }
+            _ => Err(RuntimeError::InvalidOperation(
+                "Invalid socket or not a stream".to_string(),
+            )),
         }
     }
 }
@@ -2755,32 +2833,41 @@ pub fn intrinsic_socket_recv(args: Vec<Value>) -> Result<Value, RuntimeError> {
 
     #[cfg(not(target_arch = "wasm32"))]
     {
-        if args.len() < 1 { return Err(RuntimeError::NotExecutable); }
+        if args.len() < 1 {
+            return Err(RuntimeError::NotExecutable);
+        }
         let id = match &args[0] {
-             Value::Integer(i) => *i,
-             _ => return Err(RuntimeError::TypeMismatch("Integer".to_string(), args[0].clone())),
+            Value::Integer(i) => *i,
+            _ => {
+                return Err(RuntimeError::TypeMismatch(
+                    "Integer".to_string(),
+                    args[0].clone(),
+                ));
+            }
         };
         let max_bytes = if args.len() > 1 {
-             match &args[1] {
-                 Value::Integer(i) => *i as usize,
-                 _ => 1024,
-             }
+            match &args[1] {
+                Value::Integer(i) => *i as usize,
+                _ => 1024,
+            }
         } else {
-             1024
+            1024
         };
 
         let mut sockets = get_sockets().lock().unwrap();
         match sockets.get_mut(&id) {
-             Some(SocketResource::Stream(s)) => {
-                 let mut buf = vec![0u8; max_bytes];
-                 let n = s.read(&mut buf).map_err(|_| RuntimeError::NotExecutable)?;
-                 // Truncate to actual size
-                 buf.truncate(n);
-                 // Convert to string (lossy) or return buffer?
-                 // Prompt says "Return String".
-                 Ok(Value::String(String::from_utf8_lossy(&buf).to_string()))
-             }
-             _ => Err(RuntimeError::InvalidOperation("Invalid socket or not a stream".to_string())),
+            Some(SocketResource::Stream(s)) => {
+                let mut buf = vec![0u8; max_bytes];
+                let n = s.read(&mut buf).map_err(|_| RuntimeError::NotExecutable)?;
+                // Truncate to actual size
+                buf.truncate(n);
+                // Convert to string (lossy) or return buffer?
+                // Prompt says "Return String".
+                Ok(Value::String(String::from_utf8_lossy(&buf).to_string()))
+            }
+            _ => Err(RuntimeError::InvalidOperation(
+                "Invalid socket or not a stream".to_string(),
+            )),
         }
     }
 }
@@ -2791,10 +2878,17 @@ pub fn intrinsic_socket_close(args: Vec<Value>) -> Result<Value, RuntimeError> {
 
     #[cfg(not(target_arch = "wasm32"))]
     {
-        if args.len() != 1 { return Err(RuntimeError::NotExecutable); }
+        if args.len() != 1 {
+            return Err(RuntimeError::NotExecutable);
+        }
         let id = match &args[0] {
-             Value::Integer(i) => *i,
-             _ => return Err(RuntimeError::TypeMismatch("Integer".to_string(), args[0].clone())),
+            Value::Integer(i) => *i,
+            _ => {
+                return Err(RuntimeError::TypeMismatch(
+                    "Integer".to_string(),
+                    args[0].clone(),
+                ));
+            }
         };
 
         let mut sockets = get_sockets().lock().unwrap();
@@ -2806,7 +2900,9 @@ pub fn intrinsic_socket_close(args: Vec<Value>) -> Result<Value, RuntimeError> {
     }
 }
 pub fn intrinsic_thread_spawn(args: Vec<Value>) -> Result<Value, RuntimeError> {
-    if args.len() != 1 { return Err(RuntimeError::NotExecutable); }
+    if args.len() != 1 {
+        return Err(RuntimeError::NotExecutable);
+    }
     let callable = args[0].clone();
 
     // Get Next ID
@@ -2823,29 +2919,44 @@ pub fn intrinsic_thread_spawn(args: Vec<Value>) -> Result<Value, RuntimeError> {
                 let _ = f(vec![]);
             }
             Value::Function(chunk) => {
-                 // Create VM and run
-                 // Assumes 0-arg function in chunk
-                 if let Ok(mut vm) = crate::vm::VM::new((*chunk).clone(), "THREAD", 0) {
-                     let _ = vm.run();
-                 }
+                // Create VM and run
+                // Assumes 0-arg function in chunk
+                if let Ok(mut vm) = crate::vm::VM::new((*chunk).clone(), "THREAD", 0) {
+                    let _ = vm.run();
+                }
             }
-             _ => {}
+            _ => {}
         }
     });
 
-    THREADS.get_or_init(|| Mutex::new(HashMap::new())).lock().unwrap().insert(thread_id, handle);
+    THREADS
+        .get_or_init(|| Mutex::new(HashMap::new()))
+        .lock()
+        .unwrap()
+        .insert(thread_id, handle);
 
     Ok(Value::Integer(thread_id))
 }
 
 pub fn intrinsic_thread_join(args: Vec<Value>) -> Result<Value, RuntimeError> {
-    if args.len() != 1 { return Err(RuntimeError::NotExecutable); }
+    if args.len() != 1 {
+        return Err(RuntimeError::NotExecutable);
+    }
     let thread_id = match args[0] {
         Value::Integer(i) => i,
-        _ => return Err(RuntimeError::TypeMismatch("Integer".to_string(), args[0].clone())),
+        _ => {
+            return Err(RuntimeError::TypeMismatch(
+                "Integer".to_string(),
+                args[0].clone(),
+            ));
+        }
     };
 
-    let handle_opt = THREADS.get_or_init(|| Mutex::new(HashMap::new())).lock().unwrap().remove(&thread_id);
+    let handle_opt = THREADS
+        .get_or_init(|| Mutex::new(HashMap::new()))
+        .lock()
+        .unwrap()
+        .remove(&thread_id);
 
     if let Some(handle) = handle_opt {
         if handle.join().is_ok() {
@@ -2864,31 +2975,54 @@ pub fn intrinsic_socket_set_timeout(args: Vec<Value>) -> Result<Value, RuntimeEr
 
     #[cfg(not(target_arch = "wasm32"))]
     {
-        if args.len() != 2 { return Err(RuntimeError::NotExecutable); }
+        if args.len() != 2 {
+            return Err(RuntimeError::NotExecutable);
+        }
         let id = match &args[0] {
-             Value::Integer(i) => *i,
-             _ => return Err(RuntimeError::TypeMismatch("Integer".to_string(), args[0].clone())),
+            Value::Integer(i) => *i,
+            _ => {
+                return Err(RuntimeError::TypeMismatch(
+                    "Integer".to_string(),
+                    args[0].clone(),
+                ));
+            }
         };
         let timeout_ms = match &args[1] {
-             Value::Integer(i) => *i as u64,
-             _ => return Err(RuntimeError::TypeMismatch("Integer".to_string(), args[1].clone())),
+            Value::Integer(i) => *i as u64,
+            _ => {
+                return Err(RuntimeError::TypeMismatch(
+                    "Integer".to_string(),
+                    args[1].clone(),
+                ));
+            }
         };
 
         let sockets = get_sockets().lock().unwrap();
         match sockets.get(&id) {
-             Some(SocketResource::Stream(s)) => {
-                 let dur = if timeout_ms == 0 { None } else { Some(Duration::from_millis(timeout_ms)) };
-                 s.set_read_timeout(dur).map_err(|_| RuntimeError::NotExecutable)?;
-                 s.set_write_timeout(dur).map_err(|_| RuntimeError::NotExecutable)?;
-                 Ok(Value::Unit)
-             }
-             _ => Err(RuntimeError::InvalidOperation("Invalid socket or not a stream".to_string())),
+            Some(SocketResource::Stream(s)) => {
+                let dur = if timeout_ms == 0 {
+                    None
+                } else {
+                    Some(Duration::from_millis(timeout_ms))
+                };
+                s.set_read_timeout(dur)
+                    .map_err(|_| RuntimeError::NotExecutable)?;
+                s.set_write_timeout(dur)
+                    .map_err(|_| RuntimeError::NotExecutable)?;
+                Ok(Value::Unit)
+            }
+            _ => Err(RuntimeError::InvalidOperation(
+                "Invalid socket or not a stream".to_string(),
+            )),
         }
     }
 }
 
 pub fn intrinsic_event_poll(_args: Vec<Value>) -> Result<Value, RuntimeError> {
-    let mut events = EVENTS.get_or_init(|| Mutex::new(VecDeque::new())).lock().unwrap();
+    let mut events = EVENTS
+        .get_or_init(|| Mutex::new(VecDeque::new()))
+        .lock()
+        .unwrap();
     if let Some(val) = events.pop_front() {
         Ok(val)
     } else {
@@ -2897,18 +3031,31 @@ pub fn intrinsic_event_poll(_args: Vec<Value>) -> Result<Value, RuntimeError> {
 }
 
 pub fn intrinsic_event_push(args: Vec<Value>) -> Result<Value, RuntimeError> {
-    if args.len() != 1 { return Err(RuntimeError::NotExecutable); }
+    if args.len() != 1 {
+        return Err(RuntimeError::NotExecutable);
+    }
     let val = args[0].clone();
-    EVENTS.get_or_init(|| Mutex::new(VecDeque::new())).lock().unwrap().push_back(val);
+    EVENTS
+        .get_or_init(|| Mutex::new(VecDeque::new()))
+        .lock()
+        .unwrap()
+        .push_back(val);
     Ok(Value::Unit)
 }
 
 pub fn intrinsic_func_apply(args: Vec<Value>) -> Result<Value, RuntimeError> {
-    if args.len() != 2 { return Err(RuntimeError::NotExecutable); }
+    if args.len() != 2 {
+        return Err(RuntimeError::NotExecutable);
+    }
     let func = args[0].clone();
     let func_args = match &args[1] {
         Value::List(l) => l.clone(),
-        _ => return Err(RuntimeError::TypeMismatch("List".to_string(), args[1].clone())),
+        _ => {
+            return Err(RuntimeError::TypeMismatch(
+                "List".to_string(),
+                args[1].clone(),
+            ));
+        }
     };
 
     match func {
@@ -2922,31 +3069,40 @@ pub fn intrinsic_func_apply(args: Vec<Value>) -> Result<Value, RuntimeError> {
         Value::Function(chunk) => {
             // Run VM for function
             if let Ok(mut vm) = crate::vm::VM::new((*chunk).clone(), "APPLY", 0) {
-                 for arg in func_args {
-                     vm.stack.push(arg);
-                 }
-                 vm.run().map_err(|e| RuntimeError::InvalidOperation(e))
+                for arg in func_args {
+                    vm.stack.push(arg);
+                }
+                vm.run()
+                    .map_err(|e| RuntimeError::InvalidOperation(e.to_string()))
             } else {
                 Err(RuntimeError::NotExecutable)
             }
         }
-        Value::NativeFunction(f) => {
-            f(func_args)
-        }
-        _ => Err(RuntimeError::TypeMismatch("Function or String".to_string(), func)),
+        Value::NativeFunction(f) => f(func_args),
+        _ => Err(RuntimeError::TypeMismatch(
+            "Function or String".to_string(),
+            func,
+        )),
     }
 }
 
 pub fn intrinsic_vm_eval(args: Vec<Value>) -> Result<Value, RuntimeError> {
-    if args.len() != 1 { return Err(RuntimeError::NotExecutable); }
+    if args.len() != 1 {
+        return Err(RuntimeError::NotExecutable);
+    }
     let source = match &args[0] {
         Value::String(s) => s,
-        _ => return Err(RuntimeError::TypeMismatch("String".to_string(), args[0].clone())),
+        _ => {
+            return Err(RuntimeError::TypeMismatch(
+                "String".to_string(),
+                args[0].clone(),
+            ));
+        }
     };
 
     #[cfg(target_arch = "wasm32")]
     {
-         return Ok(Value::String("[Ark:WASM] Eval not supported".to_string()));
+        return Ok(Value::String("[Ark:WASM] Eval not supported".to_string()));
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -2968,7 +3124,6 @@ pub fn intrinsic_vm_eval(args: Vec<Value>) -> Result<Value, RuntimeError> {
         // Also capture stderr if needed, but return stdout as per requirement.
         Ok(Value::String(stdout))
     }
->>>>>>> origin/advanced-runtime-intrinsics-3058456385728141381
 }
 
 #[cfg(test)]
@@ -3016,7 +3171,7 @@ mod tests {
         // Apply "intrinsic_add" with [1, 2]
         let args = vec![
             Value::String("intrinsic_add".to_string()),
-            Value::List(vec![Value::Integer(1), Value::Integer(2)])
+            Value::List(vec![Value::Integer(1), Value::Integer(2)]),
         ];
         let res = intrinsic_func_apply(args).unwrap();
         assert_eq!(res, Value::Integer(3));
@@ -3412,40 +3567,40 @@ mod tests {
             _ => panic!("Expected String"),
         }
 
-    // Networking Tests
-    #[test]
-    fn test_socket_bind_close() {
-        // Bind to port 0 (ephemeral)
-        let args = vec![Value::Integer(0)];
-        let res = intrinsic_socket_bind(args).unwrap();
-        let id = match res {
-            Value::Integer(i) => i,
-            _ => panic!("Expected Integer ID"),
-        };
-        assert!(id > 0);
+        // Networking Tests
+        #[test]
+        fn test_socket_bind_close() {
+            // Bind to port 0 (ephemeral)
+            let args = vec![Value::Integer(0)];
+            let res = intrinsic_socket_bind(args).unwrap();
+            let id = match res {
+                Value::Integer(i) => i,
+                _ => panic!("Expected Integer ID"),
+            };
+            assert!(id > 0);
 
-        // Close it
-        let args_close = vec![Value::Integer(id)];
-        let res_close = intrinsic_socket_close(args_close).unwrap();
-        assert_eq!(res_close, Value::Boolean(true));
-    }
+            // Close it
+            let args_close = vec![Value::Integer(id)];
+            let res_close = intrinsic_socket_close(args_close).unwrap();
+            assert_eq!(res_close, Value::Boolean(true));
+        }
 
-    #[test]
-    fn test_close_nonexistent() {
-        let args_close = vec![Value::Integer(999999)];
-        let res_close = intrinsic_socket_close(args_close).unwrap();
-        assert_eq!(res_close, Value::Boolean(false));
-    }
+        #[test]
+        fn test_close_nonexistent() {
+            let args_close = vec![Value::Integer(999999)];
+            let res_close = intrinsic_socket_close(args_close).unwrap();
+            assert_eq!(res_close, Value::Boolean(false));
+        }
 
-    #[test]
-    fn test_http_request_invalid_url() {
-        let args = vec![
-            Value::String("GET".to_string()),
-            Value::String("http://invalid.url.local".to_string()),
-        ];
-        let res = intrinsic_http_request(args);
-        // Should return Error, not panic
-        assert!(res.is_err());
-    }
+        #[test]
+        fn test_http_request_invalid_url() {
+            let args = vec![
+                Value::String("GET".to_string()),
+                Value::String("http://invalid.url.local".to_string()),
+            ];
+            let res = intrinsic_http_request(args);
+            // Should return Error, not panic
+            assert!(res.is_err());
+        }
     }
 }
