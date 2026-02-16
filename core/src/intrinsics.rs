@@ -182,6 +182,21 @@ impl IntrinsicRegistry {
             "sys.event.push" => Some(intrinsic_event_push),
             "sys.func.apply" => Some(intrinsic_func_apply),
             "sys.vm.eval" => Some(intrinsic_vm_eval),
+            // Phase 78: Final 12 Parity Intrinsics
+            "sys.json.parse" | "intrinsic_json_parse" => Some(intrinsic_json_parse),
+            "sys.json.stringify" | "intrinsic_json_stringify" => Some(intrinsic_json_stringify),
+            "sys.log" | "intrinsic_log" => Some(intrinsic_log),
+            "sys.exit" | "exit" | "quit" | "intrinsic_exit" => Some(intrinsic_exit),
+            "sys.html_escape" | "intrinsic_html_escape" => Some(intrinsic_html_escape),
+            "sys.z3.verify" | "intrinsic_z3_verify" => Some(intrinsic_z3_verify),
+            "sys.vm.source" | "intrinsic_vm_source" => Some(intrinsic_vm_source),
+            "math.Tensor" | "intrinsic_math_tensor" => Some(intrinsic_math_tensor),
+            "math.matmul" | "intrinsic_math_matmul" => Some(intrinsic_math_matmul),
+            "math.transpose" | "intrinsic_math_transpose" => Some(intrinsic_math_transpose),
+            "math.dot" | "intrinsic_math_dot" => Some(intrinsic_math_dot),
+            "math.add" | "intrinsic_math_tensor_add" => Some(intrinsic_math_tensor_add),
+            "math.sub" | "intrinsic_math_tensor_sub" => Some(intrinsic_math_tensor_sub),
+            "math.mul_scalar" | "intrinsic_math_mul_scalar" => Some(intrinsic_math_mul_scalar),
             _ => None,
         }
     }
@@ -561,6 +576,63 @@ impl IntrinsicRegistry {
         scope.set(
             "net.socket.set_timeout".to_string(),
             Value::NativeFunction(intrinsic_socket_set_timeout),
+        );
+
+        // Phase 78: Final 12 Parity Intrinsics
+        scope.set(
+            "sys.json.parse".to_string(),
+            Value::NativeFunction(intrinsic_json_parse),
+        );
+        scope.set(
+            "sys.json.stringify".to_string(),
+            Value::NativeFunction(intrinsic_json_stringify),
+        );
+        scope.set("sys.log".to_string(), Value::NativeFunction(intrinsic_log));
+        scope.set(
+            "sys.exit".to_string(),
+            Value::NativeFunction(intrinsic_exit),
+        );
+        scope.set("exit".to_string(), Value::NativeFunction(intrinsic_exit));
+        scope.set("quit".to_string(), Value::NativeFunction(intrinsic_exit));
+        scope.set(
+            "sys.html_escape".to_string(),
+            Value::NativeFunction(intrinsic_html_escape),
+        );
+        scope.set(
+            "sys.z3.verify".to_string(),
+            Value::NativeFunction(intrinsic_z3_verify),
+        );
+        scope.set(
+            "sys.vm.source".to_string(),
+            Value::NativeFunction(intrinsic_vm_source),
+        );
+        scope.set(
+            "math.Tensor".to_string(),
+            Value::NativeFunction(intrinsic_math_tensor),
+        );
+        scope.set(
+            "math.matmul".to_string(),
+            Value::NativeFunction(intrinsic_math_matmul),
+        );
+        scope.set(
+            "math.transpose".to_string(),
+            Value::NativeFunction(intrinsic_math_transpose),
+        );
+        scope.set(
+            "math.dot".to_string(),
+            Value::NativeFunction(intrinsic_math_dot),
+        );
+        scope.set(
+            "math.add".to_string(),
+            Value::NativeFunction(intrinsic_math_tensor_add),
+        );
+        scope.set(
+            "math.sub".to_string(),
+            Value::NativeFunction(intrinsic_math_tensor_sub),
+        );
+        scope.set(
+            "math.mul_scalar".to_string(),
+            Value::NativeFunction(intrinsic_math_mul_scalar),
         );
     }
 }
@@ -3124,6 +3196,547 @@ pub fn intrinsic_vm_eval(args: Vec<Value>) -> Result<Value, RuntimeError> {
         // Also capture stderr if needed, but return stdout as per requirement.
         Ok(Value::String(stdout))
     }
+}
+
+// ----------------------------------------------------------------------
+// PHASE 78: FINAL 12 PARITY INTRINSICS
+// ----------------------------------------------------------------------
+
+/// sys.json.parse(json_string) → Value
+/// Parses a JSON string into an Ark Value (Struct, List, Integer, String, Boolean, Unit).
+fn intrinsic_json_parse(args: Vec<Value>) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::InvalidOperation(
+            "sys.json.parse expects 1 argument (string)".into(),
+        ));
+    }
+    let json_str = match &args[0] {
+        Value::String(s) => s.clone(),
+        _ => {
+            return Err(RuntimeError::InvalidOperation(
+                "sys.json.parse expects a string".into(),
+            ));
+        }
+    };
+    json_to_value(&json_str)
+        .map_err(|e| RuntimeError::InvalidOperation(format!("JSON Parse Error: {}", e)))
+}
+
+fn json_to_value(s: &str) -> Result<Value, String> {
+    let s = s.trim();
+    if s.is_empty() {
+        return Err("Empty JSON string".into());
+    }
+    if s == "null" {
+        return Ok(Value::Unit);
+    }
+    if s == "true" {
+        return Ok(Value::Boolean(true));
+    }
+    if s == "false" {
+        return Ok(Value::Boolean(false));
+    }
+    // Try integer
+    if let Ok(n) = s.parse::<i64>() {
+        return Ok(Value::Integer(n));
+    }
+    // Try float → integer
+    if let Ok(f) = s.parse::<f64>() {
+        return Ok(Value::Integer(f as i64));
+    }
+    // String
+    if s.starts_with('"') && s.ends_with('"') && s.len() >= 2 {
+        let inner = &s[1..s.len() - 1];
+        let unescaped = inner
+            .replace("\\\"", "\"")
+            .replace("\\n", "\n")
+            .replace("\\t", "\t")
+            .replace("\\\\", "\\");
+        return Ok(Value::String(unescaped));
+    }
+    // Array
+    if s.starts_with('[') && s.ends_with(']') {
+        let inner = &s[1..s.len() - 1].trim();
+        if inner.is_empty() {
+            return Ok(Value::List(vec![]));
+        }
+        let items = split_json_top_level(inner, ',')?;
+        let mut list = Vec::new();
+        for item in items {
+            list.push(json_to_value(item.trim())?);
+        }
+        return Ok(Value::List(list));
+    }
+    // Object
+    if s.starts_with('{') && s.ends_with('}') {
+        let inner = &s[1..s.len() - 1].trim();
+        if inner.is_empty() {
+            return Ok(Value::Struct(HashMap::new()));
+        }
+        let pairs = split_json_top_level(inner, ',')?;
+        let mut map = HashMap::new();
+        for pair in pairs {
+            let kv = split_json_top_level(pair.trim(), ':')?;
+            if kv.len() < 2 {
+                return Err(format!("Invalid JSON object pair: {}", pair));
+            }
+            let key = kv[0].trim();
+            let val_str = kv[1..].join(":"); // rejoin in case value contains colons
+            // Strip quotes from key
+            let key = if key.starts_with('"') && key.ends_with('"') && key.len() >= 2 {
+                &key[1..key.len() - 1]
+            } else {
+                key
+            };
+            map.insert(key.to_string(), json_to_value(val_str.trim())?);
+        }
+        return Ok(Value::Struct(map));
+    }
+    // Fallback: treat as string
+    Ok(Value::String(s.to_string()))
+}
+
+fn split_json_top_level(s: &str, delimiter: char) -> Result<Vec<&str>, String> {
+    let mut result = Vec::new();
+    let mut depth_brace = 0i32;
+    let mut depth_bracket = 0i32;
+    let mut in_string = false;
+    let mut escape = false;
+    let mut start = 0;
+    for (i, c) in s.char_indices() {
+        if escape {
+            escape = false;
+            continue;
+        }
+        if c == '\\' && in_string {
+            escape = true;
+            continue;
+        }
+        if c == '"' {
+            in_string = !in_string;
+            continue;
+        }
+        if in_string {
+            continue;
+        }
+        match c {
+            '{' => depth_brace += 1,
+            '}' => depth_brace -= 1,
+            '[' => depth_bracket += 1,
+            ']' => depth_bracket -= 1,
+            _ if c == delimiter && depth_brace == 0 && depth_bracket == 0 => {
+                result.push(&s[start..i]);
+                start = i + 1;
+            }
+            _ => {}
+        }
+    }
+    result.push(&s[start..]);
+    Ok(result)
+}
+
+/// sys.json.stringify(value) → String
+/// Converts an Ark Value to its JSON string representation.
+fn intrinsic_json_stringify(args: Vec<Value>) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::InvalidOperation(
+            "sys.json.stringify expects 1 argument".into(),
+        ));
+    }
+    let json_str = value_to_json(&args[0]);
+    Ok(Value::String(json_str))
+}
+
+fn value_to_json(val: &Value) -> String {
+    match val {
+        Value::Integer(n) => n.to_string(),
+        Value::String(s) => format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\"")),
+        Value::Boolean(b) => {
+            if *b {
+                "true".into()
+            } else {
+                "false".into()
+            }
+        }
+        Value::Unit => "null".into(),
+        Value::List(items) => {
+            let parts: Vec<String> = items.iter().map(|v| value_to_json(v)).collect();
+            format!("[{}]", parts.join(","))
+        }
+        Value::Struct(map) => {
+            let parts: Vec<String> = map
+                .iter()
+                .map(|(k, v)| format!("\"{}\":{}", k, value_to_json(v)))
+                .collect();
+            format!("{{{}}}", parts.join(","))
+        }
+        _ => "null".into(),
+    }
+}
+
+/// sys.log(args...) → Unit
+/// Prints a log message to stderr with [LOG] prefix.
+fn intrinsic_log(args: Vec<Value>) -> Result<Value, RuntimeError> {
+    let parts: Vec<String> = args
+        .iter()
+        .map(|a| match a {
+            Value::Integer(n) => n.to_string(),
+            Value::String(s) => s.clone(),
+            Value::Boolean(b) => b.to_string(),
+            Value::Unit => "null".into(),
+            Value::List(_) => "[List]".into(),
+            Value::Struct(_) => "{Struct}".into(),
+            _ => format!("{:?}", a),
+        })
+        .collect();
+    eprintln!("[LOG] {}", parts.join(" "));
+    Ok(Value::Unit)
+}
+
+/// sys.exit(code?) → never returns
+/// Exits the process with the given exit code (default 0).
+fn intrinsic_exit(args: Vec<Value>) -> Result<Value, RuntimeError> {
+    let code = if !args.is_empty() {
+        match &args[0] {
+            Value::Integer(n) => *n as i32,
+            _ => 0,
+        }
+    } else {
+        0
+    };
+    std::process::exit(code);
+}
+
+/// sys.html_escape(string) → String
+/// Escapes HTML special characters: & < > " '
+fn intrinsic_html_escape(args: Vec<Value>) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::InvalidOperation(
+            "sys.html_escape expects 1 string argument".into(),
+        ));
+    }
+    let s = match &args[0] {
+        Value::String(s) => s.clone(),
+        _ => {
+            return Err(RuntimeError::InvalidOperation(
+                "sys.html_escape expects a string".into(),
+            ));
+        }
+    };
+    let escaped = s
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&#x27;");
+    Ok(Value::String(escaped))
+}
+
+/// sys.z3.verify(constraints) → Struct
+/// Stub: Z3 integration requires external z3 crate. Returns satisfiability stub.
+fn intrinsic_z3_verify(args: Vec<Value>) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::InvalidOperation(
+            "sys.z3.verify expects a List of constraint strings".into(),
+        ));
+    }
+    let constraints = match &args[0] {
+        Value::List(items) => items.clone(),
+        _ => {
+            return Err(RuntimeError::InvalidOperation(
+                "sys.z3.verify expects a List".into(),
+            ));
+        }
+    };
+    // Validate all items are strings
+    for item in &constraints {
+        match item {
+            Value::String(_) => {}
+            _ => {
+                return Err(RuntimeError::InvalidOperation(
+                    "sys.z3.verify constraints must be Strings".into(),
+                ));
+            }
+        }
+    }
+    // Stub result — real z3 binding would call the solver
+    let mut result = HashMap::new();
+    result.insert("satisfiable".to_string(), Value::Boolean(true));
+    result.insert("solver".to_string(), Value::String("stub".into()));
+    result.insert(
+        "constraint_count".to_string(),
+        Value::Integer(constraints.len() as i64),
+    );
+    Ok(Value::Struct(result))
+}
+
+/// sys.vm.source(path) → String
+/// Reads a source file and returns its contents as a string.
+/// (Full eval requires parser access; Rust runtime returns the raw source.)
+fn intrinsic_vm_source(args: Vec<Value>) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::InvalidOperation(
+            "sys.vm.source expects a file path string".into(),
+        ));
+    }
+    let path = match &args[0] {
+        Value::String(s) => s.clone(),
+        _ => {
+            return Err(RuntimeError::InvalidOperation(
+                "sys.vm.source expects a string path".into(),
+            ));
+        }
+    };
+    // Security: validate path
+    let p = PathBuf::from(&path);
+    if p.components()
+        .any(|c| matches!(c, std::path::Component::ParentDir))
+    {
+        return Err(RuntimeError::InvalidOperation(format!(
+            "Path traversal blocked: {}",
+            path
+        )));
+    }
+    match fs::read_to_string(&path) {
+        Ok(contents) => Ok(Value::String(contents)),
+        Err(e) => Err(RuntimeError::ResourceError(format!("Source Error: {}", e))),
+    }
+}
+
+// --- Tensor Math Helpers ---
+
+fn make_tensor(flat_data: Vec<i64>, shape: Vec<i64>) -> Value {
+    let data = Value::List(flat_data.iter().map(|v| Value::Integer(*v)).collect());
+    let shape_val = Value::List(shape.iter().map(|s| Value::Integer(*s)).collect());
+    let mut fields = HashMap::new();
+    fields.insert("data".to_string(), data);
+    fields.insert("shape".to_string(), shape_val);
+    Value::Struct(fields)
+}
+
+fn extract_tensor(val: &Value) -> Result<(Vec<i64>, Vec<i64>), RuntimeError> {
+    let fields = match val {
+        Value::Struct(f) => f,
+        _ => {
+            return Err(RuntimeError::InvalidOperation(format!(
+                "Expected tensor (Struct), got {:?}",
+                val
+            )));
+        }
+    };
+    let data = match fields.get("data") {
+        Some(Value::List(items)) => items
+            .iter()
+            .map(|v| match v {
+                Value::Integer(n) => Ok(*n),
+                _ => Err(RuntimeError::InvalidOperation(
+                    "Tensor data must be integers".into(),
+                )),
+            })
+            .collect::<Result<Vec<i64>, _>>()?,
+        _ => {
+            return Err(RuntimeError::InvalidOperation(
+                "Tensor must have 'data' List field".into(),
+            ));
+        }
+    };
+    let shape = match fields.get("shape") {
+        Some(Value::List(items)) => items
+            .iter()
+            .map(|v| match v {
+                Value::Integer(n) => Ok(*n),
+                _ => Err(RuntimeError::InvalidOperation(
+                    "Tensor shape must be integers".into(),
+                )),
+            })
+            .collect::<Result<Vec<i64>, _>>()?,
+        _ => {
+            return Err(RuntimeError::InvalidOperation(
+                "Tensor must have 'shape' List field".into(),
+            ));
+        }
+    };
+    Ok((data, shape))
+}
+
+/// math.Tensor(data: List, shape: List) → Tensor struct
+fn intrinsic_math_tensor(args: Vec<Value>) -> Result<Value, RuntimeError> {
+    if args.len() != 2 {
+        return Err(RuntimeError::InvalidOperation(
+            "math.Tensor expects data(list) and shape(list)".into(),
+        ));
+    }
+    let data = match &args[0] {
+        Value::List(items) => items
+            .iter()
+            .map(|v| match v {
+                Value::Integer(n) => Ok(*n),
+                _ => Err(RuntimeError::InvalidOperation(
+                    "Tensor data must be integers".into(),
+                )),
+            })
+            .collect::<Result<Vec<i64>, _>>()?,
+        _ => {
+            return Err(RuntimeError::InvalidOperation(
+                "math.Tensor expects List arguments".into(),
+            ));
+        }
+    };
+    let shape = match &args[1] {
+        Value::List(items) => items
+            .iter()
+            .map(|v| match v {
+                Value::Integer(n) => Ok(*n),
+                _ => Err(RuntimeError::InvalidOperation(
+                    "Tensor shape must be integers".into(),
+                )),
+            })
+            .collect::<Result<Vec<i64>, _>>()?,
+        _ => {
+            return Err(RuntimeError::InvalidOperation(
+                "math.Tensor expects List arguments".into(),
+            ));
+        }
+    };
+    Ok(make_tensor(data, shape))
+}
+
+/// math.matmul(A, B) → Tensor. A=[m,k], B=[k,n] → C=[m,n]
+fn intrinsic_math_matmul(args: Vec<Value>) -> Result<Value, RuntimeError> {
+    if args.len() != 2 {
+        return Err(RuntimeError::InvalidOperation(
+            "math.matmul expects 2 tensors".into(),
+        ));
+    }
+    let (a_data, a_shape) = extract_tensor(&args[0])?;
+    let (b_data, b_shape) = extract_tensor(&args[1])?;
+    if a_shape.len() != 2 || b_shape.len() != 2 {
+        return Err(RuntimeError::InvalidOperation(
+            "math.matmul expects 2D tensors".into(),
+        ));
+    }
+    let (m, k) = (a_shape[0] as usize, a_shape[1] as usize);
+    let (k2, n) = (b_shape[0] as usize, b_shape[1] as usize);
+    if k != k2 {
+        return Err(RuntimeError::InvalidOperation(format!(
+            "math.matmul dimension mismatch: {} vs {}",
+            k, k2
+        )));
+    }
+    let mut result = vec![0i64; m * n];
+    for i in 0..m {
+        for j in 0..n {
+            let mut s = 0i64;
+            for p in 0..k {
+                s += a_data[i * k + p] * b_data[p * n + j];
+            }
+            result[i * n + j] = s;
+        }
+    }
+    Ok(make_tensor(result, vec![m as i64, n as i64]))
+}
+
+/// math.transpose(T) → Tensor. T=[m,n] → T'=[n,m]
+fn intrinsic_math_transpose(args: Vec<Value>) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::InvalidOperation(
+            "math.transpose expects 1 tensor".into(),
+        ));
+    }
+    let (data, shape) = extract_tensor(&args[0])?;
+    if shape.len() != 2 {
+        return Err(RuntimeError::InvalidOperation(
+            "math.transpose expects a 2D tensor".into(),
+        ));
+    }
+    let (m, n) = (shape[0] as usize, shape[1] as usize);
+    let mut result = vec![0i64; m * n];
+    for j in 0..n {
+        for i in 0..m {
+            result[j * m + i] = data[i * n + j];
+        }
+    }
+    Ok(make_tensor(result, vec![n as i64, m as i64]))
+}
+
+/// math.dot(a, b) → Integer. Element-wise multiply and sum.
+fn intrinsic_math_dot(args: Vec<Value>) -> Result<Value, RuntimeError> {
+    if args.len() != 2 {
+        return Err(RuntimeError::InvalidOperation("math.dot expects 2 tensors".into()));
+    }
+    let (a_data, _) = extract_tensor(&args[0])?;
+    let (b_data, _) = extract_tensor(&args[1])?;
+    if a_data.len() != b_data.len() {
+        return Err(RuntimeError::InvalidOperation(format!(
+            "math.dot dimension mismatch: {} vs {}",
+            a_data.len(),
+            b_data.len()
+        )));
+    }
+    let s: i64 = a_data.iter().zip(b_data.iter()).map(|(a, b)| a * b).sum();
+    Ok(Value::Integer(s))
+}
+
+/// math.add(a, b) → Tensor. Element-wise addition.
+fn intrinsic_math_tensor_add(args: Vec<Value>) -> Result<Value, RuntimeError> {
+    if args.len() != 2 {
+        return Err(RuntimeError::InvalidOperation("math.add expects 2 tensors".into()));
+    }
+    let (a_data, a_shape) = extract_tensor(&args[0])?;
+    let (b_data, b_shape) = extract_tensor(&args[1])?;
+    if a_shape != b_shape {
+        return Err(RuntimeError::InvalidOperation(format!(
+            "math.add shape mismatch: {:?} vs {:?}",
+            a_shape, b_shape
+        )));
+    }
+    let result: Vec<i64> = a_data
+        .iter()
+        .zip(b_data.iter())
+        .map(|(a, b)| a + b)
+        .collect();
+    Ok(make_tensor(result, a_shape))
+}
+
+/// math.sub(a, b) → Tensor. Element-wise subtraction.
+fn intrinsic_math_tensor_sub(args: Vec<Value>) -> Result<Value, RuntimeError> {
+    if args.len() != 2 {
+        return Err(RuntimeError::InvalidOperation("math.sub expects 2 tensors".into()));
+    }
+    let (a_data, a_shape) = extract_tensor(&args[0])?;
+    let (b_data, b_shape) = extract_tensor(&args[1])?;
+    if a_shape != b_shape {
+        return Err(RuntimeError::InvalidOperation(format!(
+            "math.sub shape mismatch: {:?} vs {:?}",
+            a_shape, b_shape
+        )));
+    }
+    let result: Vec<i64> = a_data
+        .iter()
+        .zip(b_data.iter())
+        .map(|(a, b)| a - b)
+        .collect();
+    Ok(make_tensor(result, a_shape))
+}
+
+/// math.mul_scalar(tensor, scalar) → Tensor. Multiply every element by scalar.
+fn intrinsic_math_mul_scalar(args: Vec<Value>) -> Result<Value, RuntimeError> {
+    if args.len() != 2 {
+        return Err(RuntimeError::InvalidOperation(
+            "math.mul_scalar expects tensor and scalar".into(),
+        ));
+    }
+    let (data, shape) = extract_tensor(&args[0])?;
+    let scalar = match &args[1] {
+        Value::Integer(n) => *n,
+        _ => {
+            return Err(RuntimeError::InvalidOperation(
+                "math.mul_scalar scalar must be integer".into(),
+            ));
+        }
+    };
+    let result: Vec<i64> = data.iter().map(|v| v * scalar).collect();
+    Ok(make_tensor(result, shape))
 }
 
 #[cfg(test)]
