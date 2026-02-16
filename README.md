@@ -13,7 +13,8 @@
            System: Linear Type System & Neuro-Symbolic Intrinsic Engine
 </pre>
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
+[![License: Commercial](https://img.shields.io/badge/License-Commercial-blue.svg)](LICENSE_COMMERCIAL)
 ![Status](https://img.shields.io/badge/Status-BETA-yellow?style=for-the-badge)
 ![Security](https://img.shields.io/badge/Security-LINEAR_TYPES-blue?style=for-the-badge)
 ![Core](https://img.shields.io/badge/Core-RUST-red?style=for-the-badge)
