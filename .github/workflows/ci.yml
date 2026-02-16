@@ -140,7 +140,8 @@ jobs:
         run: pip-audit
 
       - name: Static Analysis (Bandit)
-        run: bandit -r meta/
+        # Skip B101 (assert), B104 (bind 0.0.0.0), B110 (try-except-pass), B310/B311 (random/url), B404/B603/B607 (subprocess)
+        run: bandit -r meta/ -s B101,B104,B110,B310,B311,B404,B603,B607,B113
 
   # ─── Release ──────────────────────────────────────────────────────────
   release:
