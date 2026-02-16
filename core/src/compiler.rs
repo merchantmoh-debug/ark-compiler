@@ -495,6 +495,9 @@ impl Compiler {
             Statement::Import(_) | Statement::StructDecl(_) => {
                 println!("Compiler Warning: Unhandled Statement");
             }
+            Statement::For { .. } | Statement::Import(_) | Statement::Break | Statement::Continue => {
+                // Not supported in bytecode compiler yet
+            }
         }
     }
 
@@ -546,6 +549,9 @@ impl Compiler {
                 }
                 self.chunk.write(OpCode::Load(name.clone()));
                 Ok(())
+            }
+            Expression::Match { .. } => {
+                // Not supported in bytecode compiler yet
             }
             Expression::Call {
                 function_hash,
