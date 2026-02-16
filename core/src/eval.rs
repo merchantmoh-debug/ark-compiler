@@ -16,8 +16,8 @@
  * NO IMPLIED LICENSE to rights of Mohamad Al-Zawahreh or Sovereign Systems.
  */
 
-use crate::ast::{ArkNode, Expression, Statement, Pattern};
-use crate::runtime::{Scope, Value, RuntimeError};
+use crate::ast::{ArkNode, Expression, Pattern, Statement};
+use crate::runtime::{RuntimeError, Scope, Value};
 use std::collections::HashSet;
 
 pub struct Interpreter {
@@ -160,17 +160,23 @@ impl Interpreter {
                     for stmt in body {
                         let val = self.eval_statement(stmt, scope);
                         match val {
-                             Ok(Value::Return(v)) => return Ok(Value::Return(v)),
-                             Ok(_) => {},
-                             Err(RuntimeError::InvalidOperation(msg)) if msg == "BREAK" => return Ok(Value::Unit),
-                             Err(RuntimeError::InvalidOperation(msg)) if msg == "CONTINUE" => break, // Break inner loop to continue while
-                             Err(e) => return Err(e),
+                            Ok(Value::Return(v)) => return Ok(Value::Return(v)),
+                            Ok(_) => {}
+                            Err(RuntimeError::InvalidOperation(msg)) if msg == "BREAK" => {
+                                return Ok(Value::Unit);
+                            }
+                            Err(RuntimeError::InvalidOperation(msg)) if msg == "CONTINUE" => break, // Break inner loop to continue while
+                            Err(e) => return Err(e),
                         }
                     }
                 }
                 Ok(Value::Unit)
             }
-            Statement::For { variable, iterable, body } => {
+            Statement::For {
+                variable,
+                iterable,
+                body,
+            } => {
                 let iterable_val = self.eval_expression(iterable, scope)?;
                 let items = match iterable_val {
                     Value::List(items) => items,
@@ -182,15 +188,15 @@ impl Interpreter {
                     let mut broken = false;
                     for stmt in body {
                         let result = self.eval_statement(stmt, scope);
-                         match result {
-                             Ok(Value::Return(v)) => return Ok(Value::Return(v)),
-                             Ok(_) => {},
-                             Err(RuntimeError::InvalidOperation(msg)) if msg == "BREAK" => {
-                                 broken = true;
-                                 break;
-                             },
-                             Err(RuntimeError::InvalidOperation(msg)) if msg == "CONTINUE" => break, // Break inner loop (stmt loop) to continue outer loop (item loop)
-                             Err(e) => return Err(e),
+                        match result {
+                            Ok(Value::Return(v)) => return Ok(Value::Return(v)),
+                            Ok(_) => {}
+                            Err(RuntimeError::InvalidOperation(msg)) if msg == "BREAK" => {
+                                broken = true;
+                                break;
+                            }
+                            Err(RuntimeError::InvalidOperation(msg)) if msg == "CONTINUE" => break, // Break inner loop (stmt loop) to continue outer loop (item loop)
+                            Err(e) => return Err(e),
                         }
                     }
                     if broken {
@@ -201,7 +207,8 @@ impl Interpreter {
             }
             Statement::Break => Err(RuntimeError::InvalidOperation("BREAK".to_string())),
             Statement::Continue => Err(RuntimeError::InvalidOperation("CONTINUE".to_string())),
-            Statement::Import(path) => {
+            Statement::Import(import_node) => {
+                let path = &import_node.path;
                 // Security Check: No path traversal
                 if path.contains("..") {
                     return Err(RuntimeError::UntrustedCode);
@@ -213,12 +220,14 @@ impl Interpreter {
                 self.imported_files.insert(path.clone());
 
                 // Read file
-                let content = std::fs::read_to_string(path)
-                    .map_err(|_| RuntimeError::InvalidOperation(format!("Failed to read file: {}", path)))?;
+                let content = std::fs::read_to_string(path).map_err(|_| {
+                    RuntimeError::InvalidOperation(format!("Failed to read file: {}", path))
+                })?;
 
                 // Parse JSON (MAST)
-                let node: ArkNode = serde_json::from_str(&content)
-                     .map_err(|e| RuntimeError::InvalidOperation(format!("JSON Parse Error: {}", e)))?;
+                let node: ArkNode = serde_json::from_str(&content).map_err(|e| {
+                    RuntimeError::InvalidOperation(format!("JSON Parse Error: {}", e))
+                })?;
 
                 self.eval(&node, scope)
             }
@@ -245,8 +254,10 @@ impl Interpreter {
                 scope.set(func_def.name.clone(), Value::Unit);
                 Ok(Value::Unit)
             }
-            Statement::Import(_) | Statement::StructDecl(_) => {
-                println!("Interpreter Warning: New AST nodes Import/StructDecl not supported in tree-walker.");
+            Statement::StructDecl(_) => {
+                println!(
+                    "Interpreter Warning: New AST nodes Import/StructDecl not supported in tree-walker."
+                );
                 Ok(Value::Unit)
             }
         }
@@ -330,31 +341,44 @@ impl Interpreter {
                             }
 
                             if !closed {
-                                return Err(RuntimeError::InvalidOperation("Unclosed string interpolation".to_string()));
+                                return Err(RuntimeError::InvalidOperation(
+                                    "Unclosed string interpolation".to_string(),
+                                ));
                             }
 
                             // Simple parser: variable or variable.field
                             let val = if expr_str.contains('.') {
                                 let parts: Vec<&str> = expr_str.split('.').collect();
                                 if parts.len() != 2 {
-                                     // Fallback for complex expressions not supported without parser
-                                     return Err(RuntimeError::InvalidOperation(format!("Complex interpolation not supported: {}", expr_str)));
+                                    // Fallback for complex expressions not supported without parser
+                                    return Err(RuntimeError::InvalidOperation(format!(
+                                        "Complex interpolation not supported: {}",
+                                        expr_str
+                                    )));
                                 }
                                 let var_name = parts[0].to_string();
                                 let field_name = parts[1].to_string();
 
-                                let obj_val = scope.get_or_move(&var_name)
+                                let obj_val = scope
+                                    .get_or_move(&var_name)
                                     .ok_or_else(|| RuntimeError::VariableNotFound(var_name))?;
 
                                 match obj_val {
                                     Value::Struct(data) => {
-                                        data.get(&field_name).cloned()
-                                            .ok_or_else(|| RuntimeError::VariableNotFound(field_name))?
-                                    },
-                                    _ => return Err(RuntimeError::TypeMismatch("Struct".to_string(), obj_val)),
+                                        data.get(&field_name).cloned().ok_or_else(|| {
+                                            RuntimeError::VariableNotFound(field_name)
+                                        })?
+                                    }
+                                    _ => {
+                                        return Err(RuntimeError::TypeMismatch(
+                                            "Struct".to_string(),
+                                            obj_val,
+                                        ));
+                                    }
                                 }
                             } else {
-                                scope.get_or_move(&expr_str)
+                                scope
+                                    .get_or_move(&expr_str)
                                     .ok_or_else(|| RuntimeError::VariableNotFound(expr_str))?
                             };
 
@@ -367,7 +391,6 @@ impl Interpreter {
                                 _ => format!("{:?}", val),
                             };
                             result.push_str(&s_val);
-
                         } else {
                             result.push(c);
                         }
@@ -432,24 +455,33 @@ impl Interpreter {
                 }
                 Ok(Value::List(values))
             }
-            Expression::Match(_) | Expression::Lambda(_) | Expression::TryCatch(_) => {
-                println!("Interpreter Warning: New AST nodes Match/Lambda/TryCatch not supported in tree-walker.");
-                Err(RuntimeError::NotExecutable)
-            }
+            Expression::Integer(i) => Ok(Value::Integer(*i)),
         }
     }
 
     fn match_pattern(&self, val: &Value, pattern: &Pattern, scope: &mut Scope) -> bool {
         match pattern {
             Pattern::Literal(s) => {
-                 if let Ok(i) = s.parse::<i64>() {
-                     if let Value::Integer(v) = val { return *v == i; }
-                 }
-                 if s == "true" { if let Value::Boolean(true) = val { return true; } }
-                 if s == "false" { if let Value::Boolean(false) = val { return true; } }
+                if let Ok(i) = s.parse::<i64>() {
+                    if let Value::Integer(v) = val {
+                        return *v == i;
+                    }
+                }
+                if s == "true" {
+                    if let Value::Boolean(true) = val {
+                        return true;
+                    }
+                }
+                if s == "false" {
+                    if let Value::Boolean(false) = val {
+                        return true;
+                    }
+                }
 
-                 if let Value::String(v) = val { return v == s; }
-                 false
+                if let Value::String(v) = val {
+                    return v == s;
+                }
+                false
             }
             Pattern::Variable(name) => {
                 scope.set(name.clone(), val.clone());
@@ -568,8 +600,14 @@ mod tests {
         let expr = Expression::Match {
             scrutinee: Box::new(Expression::Literal("10".to_string())),
             arms: vec![
-                (Pattern::Literal("5".to_string()), Expression::Literal("0".to_string())),
-                (Pattern::Literal("10".to_string()), Expression::Literal("1".to_string())),
+                (
+                    Pattern::Literal("5".to_string()),
+                    Expression::Literal("0".to_string()),
+                ),
+                (
+                    Pattern::Literal("10".to_string()),
+                    Expression::Literal("1".to_string()),
+                ),
             ],
         };
 
@@ -586,7 +624,10 @@ mod tests {
         let expr = Expression::Match {
             scrutinee: Box::new(Expression::Literal("99".to_string())),
             arms: vec![
-                (Pattern::Literal("5".to_string()), Expression::Literal("0".to_string())),
+                (
+                    Pattern::Literal("5".to_string()),
+                    Expression::Literal("0".to_string()),
+                ),
                 (Pattern::Wildcard, Expression::Literal("2".to_string())),
             ],
         };
@@ -603,9 +644,10 @@ mod tests {
         // match 99 { x => x }
         let expr = Expression::Match {
             scrutinee: Box::new(Expression::Literal("99".to_string())),
-            arms: vec![
-                (Pattern::Variable("x".to_string()), Expression::Variable("x".to_string())),
-            ],
+            arms: vec![(
+                Pattern::Variable("x".to_string()),
+                Expression::Variable("x".to_string()),
+            )],
         };
 
         let result = interpreter.eval_expression(&expr, &mut scope).unwrap();
@@ -630,19 +672,17 @@ mod tests {
                 Expression::Literal("1".to_string()),
                 Expression::Literal("2".to_string()),
             ]),
-            body: vec![
-                Statement::Let {
-                    name: "sum".to_string(),
-                    ty: None,
-                    value: Expression::Call {
-                        function_hash: "intrinsic_add".to_string(),
-                        args: vec![
-                            Expression::Variable("sum".to_string()),
-                            Expression::Variable("x".to_string()),
-                        ],
-                    }
-                }
-            ],
+            body: vec![Statement::Let {
+                name: "sum".to_string(),
+                ty: None,
+                value: Expression::Call {
+                    function_hash: "intrinsic_add".to_string(),
+                    args: vec![
+                        Expression::Variable("sum".to_string()),
+                        Expression::Variable("x".to_string()),
+                    ],
+                },
+            }],
         };
 
         interpreter.eval_statement(&stmt, &mut scope).unwrap();
@@ -668,14 +708,14 @@ mod tests {
             body: vec![
                 Statement::If {
                     condition: Expression::Call {
-                         function_hash: "intrinsic_eq".to_string(),
-                         args: vec![
-                             Expression::Variable("x".to_string()),
-                             Expression::Literal("2".to_string())
-                         ]
+                        function_hash: "intrinsic_eq".to_string(),
+                        args: vec![
+                            Expression::Variable("x".to_string()),
+                            Expression::Literal("2".to_string()),
+                        ],
                     },
                     then_block: vec![Statement::Break],
-                    else_block: None
+                    else_block: None,
                 },
                 Statement::Let {
                     name: "sum".to_string(),
@@ -686,9 +726,9 @@ mod tests {
                             Expression::Variable("sum".to_string()),
                             Expression::Variable("x".to_string()),
                         ],
-                    }
-                }
-            ]
+                    },
+                },
+            ],
         };
         interpreter.eval_statement(&stmt, &mut scope).unwrap();
         let sum = scope.get("sum").unwrap();

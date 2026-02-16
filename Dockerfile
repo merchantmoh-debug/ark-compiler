@@ -1,8 +1,11 @@
 # Stage 1: Rust builder
 FROM rust:1.93-slim AS rust-builder
 WORKDIR /build
+RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
 COPY core/ ./core/
 COPY Cargo.toml Cargo.lock ./
+# Verify tests pass during build
+RUN cd core && cargo test --release
 RUN cd core && cargo build --release
 
 # Stage 2: Python runtime
