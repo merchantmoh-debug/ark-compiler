@@ -16,11 +16,10 @@
  * NO IMPLIED LICENSE to rights of Mohamad Al-Zawahreh or Sovereign Systems.
  */
 
-use crate::ast::FunctionDef;
 use crate::bytecode::Chunk;
 
 use std::collections::HashMap;
-use std::rc::Rc;
+use std::sync::Arc;
 
 #[derive(Debug, Clone)]
 pub enum Value {
@@ -34,7 +33,7 @@ pub enum Value {
         typename: String,
         payload: String, // Simplified representation
     },
-    Function(Rc<Chunk>), // Bytecode Function
+    Function(Arc<Chunk>), // Bytecode Function
     NativeFunction(NativeFn),
     List(Vec<Value>),
     Buffer(Vec<u8>),
@@ -53,8 +52,8 @@ impl PartialEq for Value {
             (Value::Boolean(a), Value::Boolean(b)) => a == b,
             (Value::Unit, Value::Unit) => true,
             (Value::LinearObject { id: a, .. }, Value::LinearObject { id: b, .. }) => a == b,
-            (Value::Function(a), Value::Function(b)) => Rc::ptr_eq(a, b),
-            (Value::NativeFunction(a), Value::NativeFunction(b)) => a == b,
+            (Value::Function(a), Value::Function(b)) => Arc::ptr_eq(a, b),
+            (Value::NativeFunction(a), Value::NativeFunction(b)) => *a as usize == *b as usize,
             (Value::List(a), Value::List(b)) => a == b,
             (Value::Buffer(a), Value::Buffer(b)) => a == b,
             (Value::Struct(a), Value::Struct(b)) => a == b, // Note: HashMap comparisons can be slow
@@ -135,14 +134,6 @@ impl<'a> Scope<'a> {
         if let Some(v) = self.variables.remove(name) {
             return Some(v);
         }
-        // Cannot take from parent (ownership rules)?
-        // For now, strict local take. If defined in parent, we can't move it out unless we have mutable ref to parent.
-        // Scope struct has `parent: Option<&'a Scope>`. Immutable ref.
-        // So we CANNOT move out of parent.
-        // This enforces that Linear types must be passed down or local?
-        // Or we need `&mut Scope` parent.
-        // Changing Scope to have mutable parent... might break things.
-        // For Intrinsics (Bio-Bridge) on local vars, `variables.remove` is sufficient.
         None
     }
 

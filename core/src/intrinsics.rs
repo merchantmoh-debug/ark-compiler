@@ -21,6 +21,9 @@ use std::process::Command;
 use std::sync::OnceLock;
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::sync::Mutex;
+use std::thread;
+use std::collections::{HashMap, VecDeque};
 
 use aes_gcm::{
     Aes256Gcm, Nonce,
@@ -48,12 +51,6 @@ use std::sync::Mutex;
 static AI_CLIENT: OnceLock<Client> = OnceLock::new();
 
 #[cfg(not(target_arch = "wasm32"))]
-enum SocketResource {
-    Stream(TcpStream),
-    Listener(TcpListener),
-}
-
-#[cfg(not(target_arch = "wasm32"))]
 static SOCKET_ID_COUNTER: AtomicI64 = AtomicI64::new(1);
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -63,6 +60,11 @@ static SOCKETS: OnceLock<Mutex<HashMap<i64, SocketResource>>> = OnceLock::new();
 fn get_sockets() -> &'static Mutex<HashMap<i64, SocketResource>> {
     SOCKETS.get_or_init(|| Mutex::new(HashMap::new()))
 }
+
+// Threading & Events Globals
+static THREADS: OnceLock<Mutex<HashMap<i64, thread::JoinHandle<()>>>> = OnceLock::new();
+static EVENTS: OnceLock<Mutex<VecDeque<Value>>> = OnceLock::new();
+static NEXT_THREAD_ID: OnceLock<Mutex<i64>> = OnceLock::new();
 
 pub struct IntrinsicRegistry;
 
@@ -172,6 +174,14 @@ impl IntrinsicRegistry {
             "net.socket.set_timeout" | "intrinsic_socket_set_timeout" => {
                 Some(intrinsic_socket_set_timeout)
             }
+
+            // Advanced Runtime
+            "sys.thread.spawn" => Some(intrinsic_thread_spawn),
+            "sys.thread.join" => Some(intrinsic_thread_join),
+            "sys.event.poll" => Some(intrinsic_event_poll),
+            "sys.event.push" => Some(intrinsic_event_push),
+            "sys.func.apply" => Some(intrinsic_func_apply),
+            "sys.vm.eval" => Some(intrinsic_vm_eval),
             _ => None,
         }
     }
@@ -463,6 +473,18 @@ impl IntrinsicRegistry {
             "sys.fs.write".to_string(),
             Value::NativeFunction(intrinsic_fs_write),
         );
+        scope.set(
+            "sys.fs.write".to_string(),
+            Value::NativeFunction(intrinsic_fs_write),
+        );
+
+        // Advanced Runtime Registration
+        scope.set("sys.thread.spawn".to_string(), Value::NativeFunction(intrinsic_thread_spawn));
+        scope.set("sys.thread.join".to_string(), Value::NativeFunction(intrinsic_thread_join));
+        scope.set("sys.event.poll".to_string(), Value::NativeFunction(intrinsic_event_poll));
+        scope.set("sys.event.push".to_string(), Value::NativeFunction(intrinsic_event_push));
+        scope.set("sys.func.apply".to_string(), Value::NativeFunction(intrinsic_func_apply));
+        scope.set("sys.vm.eval".to_string(), Value::NativeFunction(intrinsic_vm_eval));
         scope.set(
             "sys.time.sleep".to_string(),
             Value::NativeFunction(intrinsic_time_sleep),
@@ -2491,7 +2513,6 @@ pub fn intrinsic_str_from_code(args: Vec<Value>) -> Result<Value, RuntimeError> 
     }
 }
 
-<<<<<<< HEAD
 pub fn intrinsic_extract_code(args: Vec<Value>) -> Result<Value, RuntimeError> {
     if args.len() != 1 {
         return Err(RuntimeError::NotExecutable);
@@ -2518,7 +2539,7 @@ pub fn intrinsic_extract_code(args: Vec<Value>) -> Result<Value, RuntimeError> {
     }
 
     Ok(Value::List(blocks))
-=======
+}
 // ----------------------------------------------------------------------
 // NETWORKING INTRINSICS
 // ----------------------------------------------------------------------
@@ -2784,6 +2805,58 @@ pub fn intrinsic_socket_close(args: Vec<Value>) -> Result<Value, RuntimeError> {
         }
     }
 }
+pub fn intrinsic_thread_spawn(args: Vec<Value>) -> Result<Value, RuntimeError> {
+    if args.len() != 1 { return Err(RuntimeError::NotExecutable); }
+    let callable = args[0].clone();
+
+    // Get Next ID
+    let thread_id = {
+        let mut id_guard = NEXT_THREAD_ID.get_or_init(|| Mutex::new(1)).lock().unwrap();
+        let id = *id_guard;
+        *id_guard += 1;
+        id
+    };
+
+    let handle = thread::spawn(move || {
+        match callable {
+            Value::NativeFunction(f) => {
+                let _ = f(vec![]);
+            }
+            Value::Function(chunk) => {
+                 // Create VM and run
+                 // Assumes 0-arg function in chunk
+                 if let Ok(mut vm) = crate::vm::VM::new((*chunk).clone(), "THREAD", 0) {
+                     let _ = vm.run();
+                 }
+            }
+             _ => {}
+        }
+    });
+
+    THREADS.get_or_init(|| Mutex::new(HashMap::new())).lock().unwrap().insert(thread_id, handle);
+
+    Ok(Value::Integer(thread_id))
+}
+
+pub fn intrinsic_thread_join(args: Vec<Value>) -> Result<Value, RuntimeError> {
+    if args.len() != 1 { return Err(RuntimeError::NotExecutable); }
+    let thread_id = match args[0] {
+        Value::Integer(i) => i,
+        _ => return Err(RuntimeError::TypeMismatch("Integer".to_string(), args[0].clone())),
+    };
+
+    let handle_opt = THREADS.get_or_init(|| Mutex::new(HashMap::new())).lock().unwrap().remove(&thread_id);
+
+    if let Some(handle) = handle_opt {
+        if handle.join().is_ok() {
+            Ok(Value::Boolean(true))
+        } else {
+            Ok(Value::Boolean(false))
+        }
+    } else {
+        Ok(Value::Boolean(false)) // Thread not found
+    }
+}
 
 pub fn intrinsic_socket_set_timeout(args: Vec<Value>) -> Result<Value, RuntimeError> {
     #[cfg(target_arch = "wasm32")]
@@ -2812,7 +2885,90 @@ pub fn intrinsic_socket_set_timeout(args: Vec<Value>) -> Result<Value, RuntimeEr
              _ => Err(RuntimeError::InvalidOperation("Invalid socket or not a stream".to_string())),
         }
     }
->>>>>>> origin/rust-networking-intrinsics-570408427545700672
+}
+
+pub fn intrinsic_event_poll(_args: Vec<Value>) -> Result<Value, RuntimeError> {
+    let mut events = EVENTS.get_or_init(|| Mutex::new(VecDeque::new())).lock().unwrap();
+    if let Some(val) = events.pop_front() {
+        Ok(val)
+    } else {
+        Ok(Value::Unit)
+    }
+}
+
+pub fn intrinsic_event_push(args: Vec<Value>) -> Result<Value, RuntimeError> {
+    if args.len() != 1 { return Err(RuntimeError::NotExecutable); }
+    let val = args[0].clone();
+    EVENTS.get_or_init(|| Mutex::new(VecDeque::new())).lock().unwrap().push_back(val);
+    Ok(Value::Unit)
+}
+
+pub fn intrinsic_func_apply(args: Vec<Value>) -> Result<Value, RuntimeError> {
+    if args.len() != 2 { return Err(RuntimeError::NotExecutable); }
+    let func = args[0].clone();
+    let func_args = match &args[1] {
+        Value::List(l) => l.clone(),
+        _ => return Err(RuntimeError::TypeMismatch("List".to_string(), args[1].clone())),
+    };
+
+    match func {
+        Value::String(name) => {
+            if let Some(native_fn) = IntrinsicRegistry::resolve(&name) {
+                native_fn(func_args)
+            } else {
+                Err(RuntimeError::FunctionNotFound(name))
+            }
+        }
+        Value::Function(chunk) => {
+            // Run VM for function
+            if let Ok(mut vm) = crate::vm::VM::new((*chunk).clone(), "APPLY", 0) {
+                 for arg in func_args {
+                     vm.stack.push(arg);
+                 }
+                 vm.run().map_err(|e| RuntimeError::InvalidOperation(e))
+            } else {
+                Err(RuntimeError::NotExecutable)
+            }
+        }
+        Value::NativeFunction(f) => {
+            f(func_args)
+        }
+        _ => Err(RuntimeError::TypeMismatch("Function or String".to_string(), func)),
+    }
+}
+
+pub fn intrinsic_vm_eval(args: Vec<Value>) -> Result<Value, RuntimeError> {
+    if args.len() != 1 { return Err(RuntimeError::NotExecutable); }
+    let source = match &args[0] {
+        Value::String(s) => s,
+        _ => return Err(RuntimeError::TypeMismatch("String".to_string(), args[0].clone())),
+    };
+
+    #[cfg(target_arch = "wasm32")]
+    {
+         return Ok(Value::String("[Ark:WASM] Eval not supported".to_string()));
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        // Write to temp file
+        let temp_path = "temp_eval.ark";
+        fs::write(temp_path, source).map_err(|_| RuntimeError::NotExecutable)?;
+
+        // Execute python meta/ark.py
+        let output = Command::new("python3")
+            .arg("meta/ark.py")
+            .arg(temp_path)
+            .output()
+            .map_err(|_| RuntimeError::NotExecutable)?;
+
+        let _ = fs::remove_file(temp_path);
+
+        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+        // Also capture stderr if needed, but return stdout as per requirement.
+        Ok(Value::String(stdout))
+    }
+>>>>>>> origin/advanced-runtime-intrinsics-3058456385728141381
 }
 
 #[cfg(test)]
@@ -2821,6 +2977,51 @@ mod tests {
     use crate::runtime::Value;
 
     // Existing tests...
+    #[test]
+    fn test_thread_spawn_join() {
+        // Simple test: Spawn a thread that returns Unit (via function returning unit)
+        // thread_spawn returns ID. join(ID) returns true.
+        let args = vec![Value::NativeFunction(intrinsic_io_cls)]; // io.cls is safe void
+        let res = intrinsic_thread_spawn(args).unwrap();
+        let id = match res {
+            Value::Integer(i) => i,
+            _ => panic!("Expected Thread ID"),
+        };
+
+        // Wait a bit to ensure thread runs
+        thread::sleep(Duration::from_millis(100));
+
+        let args_join = vec![Value::Integer(id)];
+        let join_res = intrinsic_thread_join(args_join).unwrap();
+        assert_eq!(join_res, Value::Boolean(true));
+    }
+
+    #[test]
+    fn test_event_push_poll() {
+        // Push 42
+        let args_push = vec![Value::Integer(42)];
+        intrinsic_event_push(args_push).unwrap();
+
+        // Poll
+        let res = intrinsic_event_poll(vec![]).unwrap();
+        assert_eq!(res, Value::Integer(42));
+
+        // Poll again (empty)
+        let res_empty = intrinsic_event_poll(vec![]).unwrap();
+        assert_eq!(res_empty, Value::Unit);
+    }
+
+    #[test]
+    fn test_func_apply_native() {
+        // Apply "intrinsic_add" with [1, 2]
+        let args = vec![
+            Value::String("intrinsic_add".to_string()),
+            Value::List(vec![Value::Integer(1), Value::Integer(2)])
+        ];
+        let res = intrinsic_func_apply(args).unwrap();
+        assert_eq!(res, Value::Integer(3));
+    }
+
     #[test]
     fn test_time_now() {
         let res = intrinsic_time_now(vec![]);
@@ -3031,7 +3232,6 @@ mod tests {
         }
     }
 
-<<<<<<< HEAD
     #[test]
     fn test_time_sleep() {
         let args = vec![Value::Integer(10)];
