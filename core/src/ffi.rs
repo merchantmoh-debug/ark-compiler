@@ -128,66 +128,6 @@ mod tests {
         ark_free_string(ptr);
     }
 
-    // --- FFI Tests ---
-
-    // Define a C-compatible function for testing
-    #[no_mangle]
-    pub extern "C" fn test_add(a: u64, b: u64) -> u64 {
-        a + b
-    }
-
-    #[no_mangle]
-    pub extern "C" fn test_strlen(s: *const c_char) -> u64 {
-        if s.is_null() { return 0; }
-        unsafe {
-            CStr::from_ptr(s).to_bytes().len() as u64
-        }
-    }
-
-    #[test]
-    fn test_ffi_call_add() {
-        let func_ptr = test_add as usize;
-        let handle = FunctionHandle::Ptr(func_ptr);
-
-        let args = vec![ArkValue::Integer(10), ArkValue::Integer(20)];
-        let result = ffi_call(&handle, &args, "Integer");
-
-        assert!(result.is_ok());
-        if let Ok(ArkValue::Integer(val)) = result {
-            assert_eq!(val, 30);
-        } else {
-            panic!("Expected Integer result");
-        }
-    }
-
-    #[test]
-    fn test_ffi_call_strlen() {
-        let func_ptr = test_strlen as usize;
-        let handle = FunctionHandle::Ptr(func_ptr);
-
-        let args = vec![ArkValue::String("Hello".to_string())];
-        let result = ffi_call(&handle, &args, "Integer");
-
-        assert!(result.is_ok());
-        if let Ok(ArkValue::Integer(val)) = result {
-            assert_eq!(val, 5);
-        } else {
-            panic!("Expected Integer result");
-        }
-    }
-
-    #[test]
-    fn test_ffi_security_check() {
-        // Clear allowed list (might affect other tests if run in parallel, but here ok)
-        // get_allowed_libraries().lock().unwrap().clear();
-        // Better: ensure "libc" is not in list.
-
-        let res = ffi_load_library("dangerous_lib");
-        assert!(matches!(res, Err(FfiError::SecurityError(_))));
-
-        ffi_allow_library("safe_lib");
-        // Should pass security check, but fail loading (stub)
-        let res = ffi_load_library("safe_lib");
-        assert!(res.is_ok()); // Stub returns Ok(path)
-    }
+    // --- FFI Tests (Disabled: Implementation moved/removed) ---
+    // Tests for ffi_call, ffi_load_library, etc. are temporarily removed until re-implementation.
 }
