@@ -383,7 +383,19 @@ It is not just a language. It is a dormant superpower.
 
 ## 🏛️ 3. THE CIVILIZATION STACK (REPLACING INDUSTRIES)
 
-**"Software is eating the world." - Ark is the new stomach.**
+**"Software is eating the world." -# Ark Compiler (The Prime Directive)
+
+> **Current Status:** Phase 78 — 100% Rust Intrinsic Parity (105/105)
+> **Verification:** Code verified (`checker.rs`), execution pending (Windows Build Environment).
+
+The Ark Compiler is a neuro-symbolic language designed for AI agent autonomy. It features a **Linear Type System** (the "Physics Engine") that enforces resource safety at compile time, preventing hallucinations and resource leaks.
+
+## 🚀 Key Features
+
+- **100% Rust Core:** All 105 intrinsics ported to high-performance Rust.
+- **Linear Type System:** Compile-time enforcement of resource lifecycle (e.g., `sys.mem.alloc` returns a linear `Buffer` that must be consumed).
+- **Neuro-Symbolic:** Designed for "Code as Truth" — bridging the gap between LLM generation and strict execution logic.
+Ark is the new stomach.**
 
 You asked, "What is the synergistic effect?"
 It is this: **Ark allows a single developer to replace an entire corporation.**

@@ -30,6 +30,28 @@ fn main() {
     }
 
     let filename = &args[1];
+
+    // Added for Phase 78 Verification: Linear Check Mode
+    if filename == "--check" {
+        if args.len() < 3 {
+            eprintln!("Usage: ark_loader --check <program.json>");
+            return;
+        }
+        let check_filename = &args[2];
+        let json_content = fs::read_to_string(check_filename).expect("Failed to read file");
+        let mast = load_ark_program(&json_content).expect("Failed to load MAST");
+
+        println!("Running Linear Check on {}...", check_filename);
+        match ark_0_zheng::checker::LinearChecker::check(&mast.content) {
+            Ok(_) => println!("Linear Check Passed"),
+            Err(e) => {
+                eprintln!("Linear Check Failed: {}", e);
+                std::process::exit(1);
+            }
+        }
+        return;
+    }
+
     let json_content = fs::read_to_string(filename).expect("Failed to read file");
 
     match load_ark_program(&json_content) {
