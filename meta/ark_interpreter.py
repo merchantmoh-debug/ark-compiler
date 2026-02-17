@@ -99,7 +99,7 @@ class OptimizedScope(Scope):
                 # We can't easily import LinearityViolation, relying on runtime checks or generic error
                 # Ideally we should raise the specific error.
                 # Assuming simple exception for now to avoid circular deps if any.
-                raise Exception(f"Use of moved variable '{name}'")
+                raise ArkRuntimeError(f"Use of moved variable '{name}'")
             return val
 
         # 2. Cache Lookup (O(1))
@@ -356,7 +356,7 @@ def handle_call_expr(node, scope):
                 func_name = func_val.val.name
             elif func_val.type == "BoundMethod":
                 func_name = func_val.val[0].name
-        except:
+        except Exception:
             pass
 
         line = getattr(node, 'line', None)
@@ -374,7 +374,7 @@ def handle_number(node, scope):
 def handle_string(node, scope):
     try:
         s = ast.literal_eval(node.children[0].value)
-    except:
+    except (ValueError, SyntaxError):
         s = node.children[0].value[1:-1]
     return ArkValue(s, "String")
 
@@ -585,7 +585,7 @@ def call_user_func(func: ArkFunction, args: List[ArkValue], instance: Optional[A
         _recursion_depth -= 1
 
 
-def instantiate_class(klass: ArkClass, args: List[ArkValue]):
+def instantiate_class(klass: ArkClass, _args: List[ArkValue]):
     instance = ArkInstance(klass, {})
     return ArkValue(instance, "Instance")
 

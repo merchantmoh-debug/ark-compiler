@@ -893,7 +893,7 @@ def dispatch_agent(task: dict) -> dict:
 
 def main():
     print(f"{'='*60}")
-    print(f"  ARK SINGULARITY SPRINT — JULES SWARM DISPATCH")
+    print("  ARK SINGULARITY SPRINT — JULES SWARM DISPATCH")
     print(f"  Agents: {len(TASKS)}")
     print(f"  Repo:   {REPO}")
     print(f"  Payload: {len(PAYLOAD)} bytes ({PAYLOAD_PATH})")
@@ -906,10 +906,10 @@ def main():
         results.append(result)
         
         if result["success"]:
-            print(f"✅")
+            print("✅")
             print(f"           {result['output'][:120]}")
         else:
-            print(f"❌")
+            print("❌")
             print(f"           {result['output'][:200]}")
         
         __import__("time").sleep(2)  # Rate limit between dispatches
