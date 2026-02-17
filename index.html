@@ -199,6 +199,28 @@
             }
         }
 
+        // --- State Normalization ---
+        // Ark WASM serializes ALL values as strings in JSON.
+        // When we send state back, Ark VM sees string "0" as truthy,
+        // so update() returns immediately. This recursively converts
+        // string-encoded numbers back to actual numbers.
+        function normalizeState(obj) {
+            if (Array.isArray(obj)) {
+                return obj.map(normalizeState);
+            }
+            if (obj !== null && typeof obj === 'object') {
+                const out = {};
+                for (const [k, v] of Object.entries(obj)) {
+                    out[k] = normalizeState(v);
+                }
+                return out;
+            }
+            if (typeof obj === 'string' && obj !== '' && !isNaN(Number(obj)) && isFinite(Number(obj))) {
+                return Number(obj);
+            }
+            return obj;
+        }
+
         // --- Game Loop ---
         let lastTime = 0;
         const TICK_RATE = 100;
@@ -208,7 +230,8 @@
 
             if (!isPaused && timestamp - lastTime > TICK_RATE) {
                 if (!Number(gameState.game_over)) {
-                    const newState = callWasmJson(wasm.ark_call, "update", [gameState, lastInput]);
+                    const stateToSend = normalizeState(gameState);
+                    const newState = callWasmJson(wasm.ark_call, "update", [stateToSend, lastInput]);
                     if (newState && !newState.error) {
                         gameState = newState;
                     } else {
@@ -228,24 +251,32 @@
             ctx.fillStyle = '#000';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // Draw Snake with gradient
-            if (gameState.snake) {
-                for (let i = 0; i < gameState.snake.length; i++) {
-                    const part = gameState.snake[i];
-                    const intensity = 1 - (i / gameState.snake.length) * 0.6;
-                    ctx.fillStyle = `rgba(0, ${Math.floor(255 * intensity)}, ${Math.floor(136 * intensity)}, 1)`;
-                    ctx.fillRect(part[0] * SCALE, part[1] * SCALE, SCALE - 1, SCALE - 1);
+            // Draw Snake
+            const snake = gameState.snake || [];
+            for (let i = 0; i < snake.length; i++) {
+                const seg = snake[i];
+                const x = Number(seg[0]) * SCALE;
+                const y = Number(seg[1]) * SCALE;
+                if (i === snake.length - 1) {
+                    // Head - bright gradient
+                    const grad = ctx.createLinearGradient(x, y, x + SCALE, y + SCALE);
+                    grad.addColorStop(0, '#00ff88');
+                    grad.addColorStop(1, '#00cc66');
+                    ctx.fillStyle = grad;
+                } else {
+                    ctx.fillStyle = '#00aa55';
                 }
+                ctx.fillRect(x + 1, y + 1, SCALE - 2, SCALE - 2);
             }
 
             // Draw Apple
-            if (gameState.apple) {
-                ctx.fillStyle = '#ff3355';
-                ctx.shadowColor = '#ff3355';
-                ctx.shadowBlur = 8;
-                ctx.fillRect(gameState.apple[0] * SCALE, gameState.apple[1] * SCALE, SCALE - 1, SCALE - 1);
-                ctx.shadowBlur = 0;
-            }
+            const apple = gameState.apple || [0, 0];
+            const ax = Number(apple[0]) * SCALE + SCALE / 2;
+            const ay = Number(apple[1]) * SCALE + SCALE / 2;
+            ctx.fillStyle = '#ff3333';
+            ctx.beginPath();
+            ctx.arc(ax, ay, SCALE / 2 - 1, 0, Math.PI * 2);
+            ctx.fill();
 
             // Score
             ctx.fillStyle = '#888';
@@ -264,14 +295,23 @@
             }
         }
 
-        // --- Input ---
+        // --- Input (Arrow Keys + WASD) ---
+        const WASD_MAP = { 'w': 'ArrowUp', 'a': 'ArrowLeft', 's': 'ArrowDown', 'd': 'ArrowRight' };
         window.addEventListener('keydown', e => {
-            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
-                if (!isPaused) lastInput = e.key;
+            const key = e.key;
+            const lower = key.toLowerCase();
+            // Arrow keys
+            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(key)) {
+                if (!isPaused) lastInput = key;
                 e.preventDefault();
             }
-            if (e.key.toLowerCase() === 'p') togglePause();
-            if (e.key.toLowerCase() === 'r') restartGame();
+            // WASD
+            if (WASD_MAP[lower]) {
+                if (!isPaused) lastInput = WASD_MAP[lower];
+                e.preventDefault();
+            }
+            if (lower === 'p') togglePause();
+            if (lower === 'r') restartGame();
         });
 
         function togglePause() {

@@ -154,6 +154,18 @@
             }
         }
 
+        // --- State Normalization ---
+        function normalizeState(obj) {
+            if (Array.isArray(obj)) return obj.map(normalizeState);
+            if (obj !== null && typeof obj === 'object') {
+                const out = {};
+                for (const [k, v] of Object.entries(obj)) out[k] = normalizeState(v);
+                return out;
+            }
+            if (typeof obj === 'string' && obj !== '' && !isNaN(Number(obj)) && isFinite(Number(obj))) return Number(obj);
+            return obj;
+        }
+
         // --- Game Loop ---
         let lastTime = 0;
         const TICK_RATE = 100; // ms
@@ -164,7 +176,8 @@
             if (!isPaused && timestamp - lastTime > TICK_RATE) {
                 // Update
                 if (!Number(gameState.game_over)) {
-                    const newState = callWasmJson(wasm.ark_call, "update", [gameState, lastInput]);
+                    const stateToSend = normalizeState(gameState);
+                    const newState = callWasmJson(wasm.ark_call, "update", [stateToSend, lastInput]);
                     // Don't reset input immediately to ensure 180 prevention works?
                     // Actually, reset input after consumed.
                     // But if tick is slow, we might miss input?
@@ -194,21 +207,23 @@
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
             // Draw Snake
-            ctx.fillStyle = '#0f0';
-            if (gameState.snake) {
-                for (const part of gameState.snake) {
-                    // part is [x, y]
-                    // If part is LinearObject/Struct? JSON should be list.
-                    // ark_to_json.py creates List.
-                    ctx.fillRect(part[0] * SCALE, part[1] * SCALE, SCALE - 1, SCALE - 1);
+            const snake = gameState.snake || [];
+            for (let i = 0; i < snake.length; i++) {
+                const seg = snake[i];
+                const x = Number(seg[0]) * SCALE;
+                const y = Number(seg[1]) * SCALE;
+                if (i === snake.length - 1) {
+                    ctx.fillStyle = '#0f0';
+                } else {
+                    ctx.fillStyle = '#0a0';
                 }
+                ctx.fillRect(x, y, SCALE - 1, SCALE - 1);
             }
 
             // Draw Apple
-            if (gameState.apple) {
-                ctx.fillStyle = '#f00';
-                ctx.fillRect(gameState.apple[0] * SCALE, gameState.apple[1] * SCALE, SCALE - 1, SCALE - 1);
-            }
+            const apple = gameState.apple || [0, 0];
+            ctx.fillStyle = '#f00';
+            ctx.fillRect(Number(apple[0]) * SCALE, Number(apple[1]) * SCALE, SCALE - 1, SCALE - 1);
 
             // Score
             ctx.fillStyle = '#fff';
@@ -224,14 +239,21 @@
             }
         }
 
-        // --- Input ---
+        // --- Input (Arrow Keys + WASD) ---
+        const WASD_MAP = { 'w': 'ArrowUp', 'a': 'ArrowLeft', 's': 'ArrowDown', 'd': 'ArrowRight' };
         window.addEventListener('keydown', e => {
-            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
-                if (!isPaused) lastInput = e.key;
+            const key = e.key;
+            const lower = key.toLowerCase();
+            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(key)) {
+                if (!isPaused) lastInput = key;
                 e.preventDefault();
             }
-            if (e.key.toLowerCase() === 'p') togglePause();
-            if (e.key.toLowerCase() === 'r') restartGame();
+            if (WASD_MAP[lower]) {
+                if (!isPaused) lastInput = WASD_MAP[lower];
+                e.preventDefault();
+            }
+            if (lower === 'p') togglePause();
+            if (lower === 'r') restartGame();
         });
 
         function togglePause() {
