@@ -10,7 +10,7 @@ We are building the **Sovereign Stack**—language, compiler, and runtime—to f
 
 To build and contribute to Ark, you need the following tools installed:
 
-1.  **Rust 1.75+**: Required for the Core VM. [Install Rust](https://rustup.rs/)
+1.  **Rust 1.80+**: Required for the Core VM. [Install Rust](https://rustup.rs/)
 2.  **Python 3.11+**: Required for the Bootstrap Compiler and Swarm tools.
 3.  **Git**: For version control.
 
@@ -42,7 +42,7 @@ python meta/gauntlet.py
 To interact with the Ark language directly:
 
 ```bash
-python meta/repl.py
+python meta/ark.py repl
 ```
 
 This launches the interactive Read-Eval-Print Loop where you can type Ark code and see immediate results.

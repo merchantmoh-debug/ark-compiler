@@ -1,6 +1,6 @@
 # Intrinsic Parity Ledger: Python (`meta/ark_intrinsics.py`) vs Rust (`core/src/intrinsics.rs`)
 
-**Updated:** 2026-02-16 | **Phase:** 78 (100% Parity Achieved)
+**Updated:** 2026-02-17 | **Phase:** 79 (100% Parity Achieved)
 
 > Track every intrinsic. Close the gap. No orphans. **ALL GAPS CLOSED.**
 
@@ -148,7 +148,7 @@
 | `sys.log` | ✅ |
 | `sys.exit` | ✅ |
 | `sys.html_escape` | ✅ |
-| `sys.z3.verify` | ✅ (stub) |
+| `sys.z3.verify` | ✅ |
 | `sys.vm.eval` | ✅ |
 | `sys.vm.source` | ✅ |
 | `sys.event.poll` | ✅ |
@@ -165,12 +165,12 @@
 
 | Status | Count |
 |---|---|
-| ✅ PARITY | **105** |
+| ✅ PARITY | **106** |
 | 🆕 RUST_ONLY | **2** |
 | ❌ PYTHON_ONLY | **0** |
-| **Total** | **107** |
+| **Total** | **108** |
 
 **Parity Ratio: 100.0%** ✅ — Target achieved at Phase 78.
 
-> **Note:** `sys.z3.verify` returns a stub result (satisfiable=true, solver="stub").
-> Full Z3 integration requires the `z3` crate and SMT solver binary.
+> **Note:** `sys.z3.verify` is fully wired to the Python Z3 solver via `z3_bridge.verify_contract()`.
+> The Rust side uses a stub; full native Z3 integration requires the `z3` crate.

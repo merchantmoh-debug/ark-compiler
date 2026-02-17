@@ -1,41 +1,67 @@
-# The Ark-1 Programmer's Field Manual
+# The Ark Language — User Manual
 
-**Version:** Omega-Point v113.5
-**Architect:** Mohamad Al-Zawahreh (Sovereign Systems)
-**Status:** ACTIVE / SOVEREIGN
+**Version:** Phase 79 | **Updated:** 2026-02-17
+**License:** AGPL-3.0 | **Author:** Mohamad Al-Zawahreh (Sovereign Systems)
+
+> This manual teaches you everything you need to write real programs in Ark.
+> For the full intrinsic API, see [API_REFERENCE.md](API_REFERENCE.md).
+> For standard library module docs, see [STDLIB_REFERENCE.md](STDLIB_REFERENCE.md).
+
+---
+
+## Table of Contents
+
+1. [Installation](#1-installation)
+2. [Hello World](#2-hello-world)
+3. [Variables](#3-variables)
+4. [Data Types](#4-data-types)
+5. [Operators](#5-operators)
+6. [Control Flow](#6-control-flow)
+7. [Functions](#7-functions)
+8. [Lists](#8-lists)
+9. [Strings](#9-strings)
+10. [Imports & Modules](#10-imports--modules)
+11. [Standard Library](#11-standard-library)
+12. [Intrinsics (Built-ins)](#12-intrinsics-built-ins)
+13. [File I/O](#13-file-io)
+14. [Networking](#14-networking)
+15. [Cryptography](#15-cryptography)
+16. [Blockchain](#16-blockchain)
+17. [AI Integration](#17-ai-integration)
+18. [Error Handling](#18-error-handling)
+19. [Configuration & Security](#19-configuration--security)
+20. [Running Programs](#20-running-programs)
+21. [REPL](#21-repl)
+22. [FAQ](#22-faq)
 
 ---
 
 ## 1. Installation
 
-Ark is distributed as a source-available sovereign stack. It is designed to be built from source to ensure full auditability.
-
 ### Prerequisites
 
-*   **Rust 1.75+**: For the high-performance VM (`core/`).
-*   **Python 3.11+**: For the bootstrap compiler and tooling (`meta/`).
-*   **Git**: To clone the repository.
+- **Rust 1.80+** — For the Rust VM core. [Install Rust](https://rustup.rs/)
+- **Python 3.11+** — For the bootstrap compiler and tooling.
+- **Git** — To clone the repo.
 
-### Quick Install
+### From Source
 
 ```bash
-# 1. Clone the repository
+# Clone
 git clone https://github.com/merchantmoh-debug/ark-compiler.git
 cd ark-compiler
 
-# 2. Build the Rust VM (The Engine)
-cd core
-cargo build --release
-# The binary will be at core/target/release/ark_loader
+# Build the Rust VM
+cd core && cargo build --release && cd ..
 
-# 3. Setup Python Environment (The Brain)
-cd ..
+# Install Python deps
 pip install -r requirements.txt
+
+# Verify
+python meta/ark.py version
 ```
 
-### Docker Install (Sanctuary)
-
-For a fully isolated environment:
+### Docker
 
 ```bash
 docker build -t ark-compiler .
@@ -44,178 +70,595 @@ docker run -it --rm ark-compiler
 
 ---
 
-## 2. Quick Start
+## 2. Hello World
 
-### Hello World
-
-Create a file named `hello.ark`:
+Create `hello.ark`:
 
 ```ark
-print("Hello, Sovereign World!")
+print("Hello, World!")
 ```
 
-Run it using the Python reference interpreter:
+Run it:
 
 ```bash
 python meta/ark.py run hello.ark
 ```
 
-Or compile and run on the Rust VM:
+Output:
 
-```bash
-# Compile to bytecode (hello.arkb)
-python meta/compile.py hello.ark hello.arkb
-
-# Run on VM
-./core/target/release/ark_loader hello.arkb
 ```
-
-### Basic Script
-
-```ark
-func fib(n) {
-    if n <= 1 {
-        return n
-    }
-    return fib(n - 1) + fib(n - 2)
-}
-
-print("Fibonacci of 10 is: " + str(fib(10)))
+Hello, World!
 ```
 
 ---
 
-## 3. Language Reference
+## 3. Variables
 
-### Variables
-
-Ark uses the `:=` operator for assignment. Variables are dynamically typed but strongly checked at runtime.
+Ark uses `:=` for assignment. Variables are dynamically typed.
 
 ```ark
 x := 42              // Integer
 name := "Ark"        // String
+pi := 3.14159        // Float
 is_valid := true     // Boolean
+nothing := null      // Null
 ```
 
-### Control Flow
-
-#### If / Else
+Reassignment uses `:=` as well:
 
 ```ark
-if x > 10 {
-    print("Large")
+x := 42
+x := x + 1           // x is now 43
+```
+
+---
+
+## 4. Data Types
+
+| Type | Example | Notes |
+| --- | --- | --- |
+| Integer | `42`, `-7`, `0` | Arbitrary precision |
+| Float | `3.14`, `-0.5` | 64-bit floating point |
+| String | `"hello"` | Double-quoted, UTF-8 |
+| Boolean | `true`, `false` | Lowercase |
+| Null | `null` | Absence of value |
+| List | `[1, 2, 3]` | Heterogeneous, ordered |
+
+---
+
+## 5. Operators
+
+### Arithmetic
+
+```ark
+a := 10 + 3    // 13 (add)
+b := 10 - 3    // 7  (subtract)
+c := 10 * 3    // 30 (multiply)
+d := 10 / 3    // 3  (integer division)
+e := 10 % 3    // 1  (modulo)
+```
+
+### Comparison
+
+```ark
+x > y          // greater than
+x < y          // less than
+x >= y         // greater or equal
+x <= y         // less or equal
+x == y         // equal
+x != y         // not equal
+```
+
+### Logical
+
+```ark
+a && b         // AND
+a || b         // OR
+!a             // NOT
+```
+
+### String Concatenation
+
+```ark
+greeting := "Hello, " + "World!"
+```
+
+---
+
+## 6. Control Flow
+
+### If / Else
+
+```ark
+if temperature > 100 {
+    print("Too hot!")
+} else if temperature < 0 {
+    print("Freezing!")
 } else {
-    print("Small")
+    print("Just right.")
 }
 ```
 
-#### Loops
+### While Loop
+
+`while` is the primary loop construct in Ark:
 
 ```ark
 i := 0
-while i < 5 {
+while i < 10 {
     print(i)
     i := i + 1
 }
 ```
 
-### Functions
+### Break & Continue (via pattern)
 
-Functions are defined using the `func` keyword.
+You can use boolean flags to simulate break/continue:
+
+```ark
+i := 0
+found := false
+while i < 100 && !found {
+    if i * i == 49 {
+        print("Found: " + str(i))
+        found := true
+    }
+    i := i + 1
+}
+```
+
+---
+
+## 7. Functions
+
+Functions are first-class citizens. They are defined with `func` and can be passed around.
+
+```ark
+func greet(name) {
+    return "Hello, " + name + "!"
+}
+
+message := greet("Alice")
+print(message)    // Hello, Alice!
+```
+
+### Multiple Arguments
 
 ```ark
 func add(a, b) {
     return a + b
 }
+
+print(add(3, 7))  // 10
 ```
 
-### Lists
-
-Lists are heterogeneous.
+### Recursion
 
 ```ark
-items := [1, "two", 3.0]
-first := list.get(items, 0)
-items := list.append(items, 4)
+func factorial(n) {
+    if n <= 1 {
+        return 1
+    }
+    return n * factorial(n - 1)
+}
+
+print(factorial(10))  // 3628800
+```
+
+### Higher-Order Functions
+
+Functions can be assigned to variables and passed as arguments:
+
+```ark
+func apply(f, x) {
+    return f(x)
+}
+
+func double(n) {
+    return n * 2
+}
+
+print(apply(double, 5))  // 10
 ```
 
 ---
 
-## 4. Standard Library & Intrinsics
+## 8. Lists
 
-Ark's functionality is exposed through "Intrinsics" – built-in functions that bridge the gap between the high-level language and the low-level runtime.
+Lists are ordered, heterogeneous collections.
 
-### System (`sys`)
+```ark
+items := [1, "two", 3.0, true]
+```
 
-*   `sys.log(message)`: Logs a message to stdout.
-*   `sys.exit(code)`: Terminates the program with the given exit code.
-*   `sys.exec(command)`: Executes a shell command. **Requires `ALLOW_DANGEROUS_LOCAL_EXECUTION=true`**.
-*   `sys.fs.read(path)`: Reads a file as a string.
-*   `sys.fs.write(path, content)`: Writes a string to a file.
+### Accessing Elements
 
-### Math (`math`)
+```ark
+first := list.get(items, 0)       // 1
+last  := list.get(items, 3)       // true
+```
 
-*   `math.sin(x)`: Sine function (scaled integer).
-*   `math.cos(x)`: Cosine function (scaled integer).
-*   `math.sqrt(x)`: Square root.
-*   `math.random()`: Random integer between 0 and 100.
+### Modifying Lists
 
-### Cryptography (`crypto`)
+```ark
+items := list.append(items, "new")  // [1, "two", 3.0, true, "new"]
+length := list.length(items)        // 5
+```
 
-*   `crypto.sha256(data)`: Returns the SHA-256 hash of the input string.
-*   `crypto.uuid()`: Generates a V4 UUID.
+### List Intrinsics
 
-### Networking (`net`)
-
-*   `net.http.get(url)`: Performs a GET request.
-*   `net.http.post(url, body)`: Performs a POST request.
-
-### Chain (`chain`)
-
-*   `chain.block.height()`: Returns the current block height of the host chain.
-*   `chain.tx.send(to, amount)`: Sends a transaction on the host chain.
-
----
-
-## 5. Configuration
-
-Ark is controlled by several environment variables to ensure security and resource management.
-
-### Execution Limits
-
-*   `ARK_EXEC_TIMEOUT`: Maximum execution time in seconds (Default: 5). Prevents infinite loops.
-*   `ARK_MAX_STEPS`: Maximum number of VM instructions to execute (Default: 1,000,000).
-
-### Security
-
-*   `ARK_CAPABILITIES`: A comma-separated list of allowed capabilities.
-    *   `*`: Allow all (Dangerous!).
-    *   `net`: Allow networking.
-    *   `fs_read`: Allow file reading.
-    *   `fs_write`: Allow file writing.
-*   `ALLOW_DANGEROUS_LOCAL_EXECUTION`: Must be set to `true` to enable `sys.exec` and file system writes outside of sandboxed directories.
-
-### AI Integration
-
-*   `ARK_API_KEY`: API Key for LLM services (OpenAI, Anthropic, etc.) used by `intrinsic_ask_ai`.
-*   `ARK_LLM_ENDPOINT`: Custom endpoint for local LLMs (e.g., Ollama).
+| Intrinsic | Description |
+| --- | --- |
+| `list.get(list, index)` | Get element at index |
+| `list.set(list, index, value)` | Set element at index |
+| `list.append(list, value)` | Append to end |
+| `list.length(list)` | Get list length |
+| `list.slice(list, start, end)` | Extract sublist |
+| `list.contains(list, value)` | Check membership |
+| `list.map(list, func)` | Apply function to each element |
+| `list.filter(list, func)` | Filter by predicate |
+| `list.reduce(list, func, init)` | Reduce to single value |
+| `list.sort(list)` | Sort the list |
+| `list.reverse(list)` | Reverse the list |
 
 ---
 
-## 6. FAQ
+## 9. Strings
 
-**Q: Why Rust and Python?**
-A: Python provides a flexible, rapid-prototyping frontend ("The Brain"), while Rust provides a secure, high-performance execution engine ("The Engine"). This Dual-Runtime architecture allows us to iterate fast without sacrificing production stability.
+Strings are double-quoted and support concatenation with `+`.
+
+```ark
+name := "Ark"
+greeting := "Hello, " + name + "!"
+print(greeting)    // Hello, Ark!
+```
+
+### String Intrinsics
+
+| Intrinsic | Description |
+| --- | --- |
+| `str.length(s)` | String length |
+| `str.upper(s)` | Uppercase |
+| `str.lower(s)` | Lowercase |
+| `str.split(s, delimiter)` | Split into list |
+| `str.join(list, delimiter)` | Join list into string |
+| `str.contains(s, sub)` | Check substring |
+| `str.replace(s, old, new)` | Replace occurrences |
+| `str.trim(s)` | Trim whitespace |
+| `str.starts_with(s, prefix)` | Check prefix |
+| `str.ends_with(s, suffix)` | Check suffix |
+| `str.substring(s, start, end)` | Extract substring |
+
+### Type Conversion
+
+```ark
+x := 42
+s := str(x)        // "42"
+n := int("123")    // 123
+f := float("3.14") // 3.14
+```
+
+---
+
+## 10. Imports & Modules
+
+Use `import` to bring in standard library modules or other Ark files.
+
+```ark
+import lib.std.math
+import lib.std.crypto
+import lib.std.net
+import lib.wallet_lib
+```
+
+After importing, you can call the functions defined in that module:
+
+```ark
+import lib.std.math
+
+result := math.sqrt(144)
+print(result)  // 12
+```
+
+### Module Path Convention
+
+| Import Path | Location |
+| --- | --- |
+| `lib.std.math` | `lib/std/math.ark` |
+| `lib.std.crypto` | `lib/std/crypto.ark` |
+| `lib.wallet_lib` | `lib/wallet_lib.ark` |
+| `apps.server` | `apps/server.ark` |
+
+---
+
+## 11. Standard Library
+
+Ark ships with 12 standard library modules. Import them with `import lib.std.<module>`.
+
+| Module | Purpose | Key Functions |
+| --- | --- | --- |
+| `math` | Math operations | `sqrt`, `sin`, `cos`, `pow`, `abs`, `random` |
+| `string` | String utilities | `length`, `upper`, `lower`, `split`, `join` |
+| `io` | Console I/O | `read_line`, `write` |
+| `fs` | File system | `read`, `write`, `exists`, `size`, `read_bytes` |
+| `net` | HTTP networking | `http_get`, `http_post` |
+| `crypto` | Cryptography | `sha256`, `sha512`, `hmac`, `aes_encrypt`, `uuid` |
+| `chain` | Blockchain | `height`, `balance`, `submit_tx`, `get_block` |
+| `time` | Date/time | `now`, `sleep`, `format`, `elapsed` |
+| `event` | Event system | `poll`, `push` |
+| `result` | Error handling | `ok`, `err`, `is_ok`, `unwrap` |
+| `audio` | Audio playback | `play`, `stop` |
+| `ai` | AI/LLM access | `ask`, `extract_code` |
+
+> **Full module documentation:** [STDLIB_REFERENCE.md](STDLIB_REFERENCE.md)
+
+---
+
+## 12. Intrinsics (Built-ins)
+
+Intrinsics are functions compiled directly into the runtime — no imports needed.
+
+### Core Intrinsics (Always Available)
+
+```ark
+print("Hello!")             // Print to stdout
+len([1,2,3])                // 3
+type(42)                    // "Integer"
+str(42)                     // "42"
+int("42")                   // 42
+float("3.14")               // 3.14
+range(0, 10)                // [0,1,2,...,9]
+assert(1 + 1 == 2)          // Pass (or crash with error)
+```
+
+### System Intrinsics
+
+```ark
+sys.log("Debug message")    // Log to stdout
+sys.exit(0)                 // Exit with code
+sys.time.now()              // Unix timestamp
+sys.time.sleep(1000)        // Sleep for 1000ms
+sys.json.parse(json_str)    // Parse JSON string
+sys.json.stringify(value)   // Convert to JSON string
+sys.exec("ls")              // Execute shell command (requires ALLOW_DANGEROUS_LOCAL_EXECUTION)
+```
+
+> **Full list of all 106 intrinsics:** [API_REFERENCE.md](API_REFERENCE.md)
+
+---
+
+## 13. File I/O
+
+```ark
+// Read a file
+content := sys.fs.read("data.txt")
+print(content)
+
+// Write a file
+sys.fs.write("output.txt", "Hello from Ark!")
+
+// Check if file exists
+if sys.fs.exists("config.json") {
+    config := sys.fs.read("config.json")
+}
+
+// Get file size
+size := sys.fs.size("data.txt")
+print("File size: " + str(size) + " bytes")
+```
+
+> **Note:** File system access requires the `fs_read` or `fs_write` capability. See [Configuration](#19-configuration--security).
+
+---
+
+## 14. Networking
+
+```ark
+// HTTP GET
+response := net.http.get("https://api.example.com/data")
+print(response)
+
+// HTTP POST
+result := net.http.post("https://api.example.com/submit", "{\"key\": \"value\"}")
+```
+
+> **Note:** Network access requires `ARK_CAPABILITIES=net`. The runtime is air-gapped by default.
+
+---
+
+## 15. Cryptography
+
+Ark has 14 built-in cryptographic intrinsics — no external dependencies needed.
+
+```ark
+// Hashing
+hash := sys.crypto.hash("sha256", "hello")
+print(hash)  // 2cf24dba5fb0a30e26e83b2ac5b9e29e...
+
+// UUID generation
+id := sys.crypto.uuid()
+print(id)  // e.g. "550e8400-e29b-41d4-a716-446655440000"
+
+// HMAC
+mac := sys.crypto.hmac("sha256", "key", "message")
+
+// Random bytes
+bytes := sys.crypto.random_bytes(32)
+```
+
+> See the enriched `crypto` module for AES-GCM encryption, Secp256k1, PBKDF2, and Merkle root: [STDLIB_REFERENCE.md](STDLIB_REFERENCE.md#crypto)
+
+---
+
+## 16. Blockchain
+
+Ark can interact with Ethereum-compatible chains via JSON-RPC.
+
+```ark
+// Get current block height
+height := sys.chain.height()
+print("Block: " + str(height))
+
+// Check balance
+bal := sys.chain.get_balance("0x742d35Cc...")
+print("Balance: " + str(bal))
+
+// Submit a transaction
+tx_hash := sys.chain.submit_tx(signed_payload)
+```
+
+> **Configuration:** Set `ARK_RPC_URL` to your JSON-RPC endpoint (e.g., Infura, Alchemy). Without it, chain intrinsics return stubbed test data.
+
+---
+
+## 17. AI Integration
+
+Ark has built-in LLM integration:
+
+```ark
+answer := intrinsic_ask_ai("What is the capital of France?")
+print(answer)  // "Paris"
+
+code := intrinsic_extract_code(answer)  // Extract code blocks from AI response
+```
+
+> **Configuration:** Set `ARK_API_KEY` for cloud LLMs or `ARK_LLM_ENDPOINT` for local models (e.g. Ollama).
+
+---
+
+## 18. Error Handling
+
+Use the `result` standard library module for structured error handling:
+
+```ark
+import lib.std.result
+
+// Functions can return result values
+func divide(a, b) {
+    if b == 0 {
+        return result.err("Division by zero")
+    }
+    return result.ok(a / b)
+}
+
+r := divide(10, 0)
+if result.is_ok(r) {
+    print("Result: " + str(result.unwrap(r)))
+} else {
+    print("Error: " + result.unwrap_err(r))
+}
+```
+
+For simple validation, use `assert`:
+
+```ark
+assert(x > 0)  // Crashes with error if false
+```
+
+---
+
+## 19. Configuration & Security
+
+Ark uses environment variables for security controls. **By default, the runtime is sandboxed** — no network, no file writes, no shell access.
+
+### Environment Variables
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `ARK_EXEC_TIMEOUT` | `5` | Max execution time in seconds |
+| `ARK_MAX_STEPS` | `1000000` | Max VM instructions |
+| `ARK_CAPABILITIES` | (none) | Comma-separated: `net`, `fs_read`, `fs_write`, `*` |
+| `ALLOW_DANGEROUS_LOCAL_EXECUTION` | `false` | Enable `sys.exec()` |
+| `ARK_API_KEY` | (none) | API key for `intrinsic_ask_ai` |
+| `ARK_LLM_ENDPOINT` | (none) | Custom LLM endpoint (e.g., Ollama) |
+| `ARK_RPC_URL` | (none) | Ethereum JSON-RPC URL for chain intrinsics |
+
+### Example: Enable Networking
+
+```bash
+ARK_CAPABILITIES=net python meta/ark.py run my_app.ark
+```
+
+### Example: Full Permissions (Dangerous)
+
+```bash
+ARK_CAPABILITIES=* ALLOW_DANGEROUS_LOCAL_EXECUTION=true python meta/ark.py run my_app.ark
+```
+
+---
+
+## 20. Running Programs
+
+### Execute a Script
+
+```bash
+python meta/ark.py run <file.ark>
+```
+
+### Compile to Bytecode
+
+```bash
+python meta/ark.py compile <file.ark>
+```
+
+### Run on the Rust VM
+
+```bash
+# Compile first
+python meta/ark.py compile hello.ark
+
+# Then execute the bytecode
+./core/target/release/ark_loader hello.arkb
+```
+
+### Run the Test Suite
+
+```bash
+python meta/gauntlet.py
+```
+
+---
+
+## 21. REPL
+
+Launch the interactive Read-Eval-Print Loop:
+
+```bash
+python meta/ark.py repl
+```
+
+```
+Ark REPL v1.0 — Type 'exit' to quit
+>>> x := 42
+42
+>>> x + 8
+50
+>>> print("Hello from REPL!")
+Hello from REPL!
+```
+
+---
+
+## 22. FAQ
+
+**Q: Why does Ark use both Rust and Python?**
+Python provides a flexible bootstrap compiler ("The Brain"), while Rust provides a secure, high-performance execution engine ("The Engine"). This dual-runtime lets us iterate fast without sacrificing production safety.
 
 **Q: Is Ark production-ready?**
-A: The Core VM is stable. The Standard Library is evolving. We follow the "Verify First" doctrine—everything is tested.
+The Core VM is stable. The Standard Library is active and growing. Everything is tested via the Gauntlet test suite.
 
-**Q: How do I enable networking?**
-A: You must set `ARK_CAPABILITIES=net` in your environment. By default, the runtime is air-gapped.
+**Q: How is Ark different from Python/JavaScript?**
+Ark is designed for *sovereign computing* — sandboxed by default, with built-in cryptography, blockchain access, and AI integration. It uses a capability-based security model instead of trusting all code unconditionally.
 
 **Q: What happens if my code loops forever?**
-A: The `ARK_EXEC_TIMEOUT` watchdog will terminate the process after 5 seconds (configurable).
+The `ARK_EXEC_TIMEOUT` watchdog terminates the process after 5 seconds (configurable).
+
+**Q: Can I write web servers in Ark?**
+Yes. See `apps/server.ark` for a working HTTP server example.
+
+**Q: Can I build smart contracts?**
+Ark has chain intrinsics for interacting with Ethereum-compatible blockchains. See [Blockchain](#16-blockchain).
 
 ---
 
-**© 2026 Sovereign Systems**
+**© 2026 Sovereign Systems. All rights reserved.**

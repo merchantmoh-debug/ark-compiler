@@ -36,7 +36,7 @@
 
 ### 1. 100% Rust Core (`core/`)
 The runtime is built on a high-performance Rust foundation (`1.93-slim`).
-*   **Parity:** 105/105 Python intrinsics ported to Rust (196 total Rust intrinsics including Rust-only additions).
+*   **Parity:** 106/106 Python intrinsics ported to Rust (108 total including Rust-only additions).
 *   **Performance:** `sys.network`, `sys.fs`, `sys.crypto` run at native speeds.
 *   **Safety:** Memory safety enforced by Rust's ownership model + Ark's Linear Checker.
 
@@ -86,6 +86,7 @@ docker run -it --rm ark-compiler
 ```
 
 ### Local Development (Without Docker)
+
 ```bash
 # Install Python dependencies
 pip install -r requirements.txt
@@ -100,20 +101,34 @@ cargo build --release
 A fully functional Snake game written in Ark.
 ```bash
 # Start the Snake Server
-python3 apps/sovereign.py run examples/snake.ark
+python3 meta/ark.py run examples/snake.ark
 # Open http://localhost:8000 in your browser
 ```
 
 **2. Market Maker (Heavyweight Financial Logic):**
 A High-Frequency Trading bot simulation demonstrating Linear Types and Event Loops.
 ```bash
-python3 apps/sovereign.py run apps/market_maker.ark
+python3 meta/ark.py run apps/market_maker.ark
 ```
 
 **3. Wallet CLI (Pure Ark Crypto):**
 ```bash
-python3 apps/sovereign.py run apps/wallet.ark create "mypassword"
+python3 meta/ark.py run apps/wallet.ark create "mypassword"
 ```
+
+---
+
+## 📖 Learn Ark
+
+New to Ark? Start here:
+
+| Document | Description |
+| :--- | :--- |
+| **[User Manual](docs/USER_MANUAL.md)** | **Complete language guide** — variables, functions, control flow, imports, stdlib, crypto, blockchain, AI, and more. |
+| **[Quick Start](docs/QUICK_START.md)** | 5-minute setup and Hello World. |
+| **[API Reference](docs/API_REFERENCE.md)** | All 106 built-in intrinsics with signatures and examples. |
+| **[Stdlib Reference](docs/STDLIB_REFERENCE.md)** | Documentation for all 12 standard library modules. |
+| **[Manifesto](docs/MANIFESTO.md)** | Why Ark exists — the design philosophy. |
 
 ---
 
@@ -122,12 +137,14 @@ python3 apps/sovereign.py run apps/wallet.ark create "mypassword"
 | Directory | Description | Maturity |
 | :--- | :--- | :--- |
 | `core/` | **Rust Runtime & Intrinsics.** The engine. | 🟢 STABLE |
-| `lib/std/` | **Standard Library.** (`math.ark`, `net.ark`, `io.ark`). | 🟢 STABLE |
+| `lib/std/` | **Standard Library.** 12 modules (`math`, `net`, `io`, `crypto`, `chain`, etc.). | 🟢 STABLE |
 | `lib/wallet_lib.ark` | **Crypto Library.** Secp256k1/BIP39 implementation. | 🟢 STABLE |
 | `apps/lsp.ark` | **Language Server.** Self-hosted Parser/Lexer. | 🟡 BETA |
 | `apps/server.ark` | **HTTP Server.** Functional web server. | 🟡 BETA |
-| `meta/` | **Tooling.** Python-based JIT, Security Scanner, Swarm Bridge. | 🟡 BETA |
-| `tests/` | **Test Suite.** Feature tests. | 🟢 PASSING |
+| `meta/` | **Tooling.** Python-based JIT, Security Scanner, Gauntlet runner. | 🟡 BETA |
+| `docs/` | **Documentation.** API Reference, Stdlib Reference, Manifesto. | 🟢 STABLE |
+| `site/` | **Web Assets.** Landing page, WASM test harness. | 🟡 BETA |
+| `tests/` | **Test Suite.** 100+ feature tests (Gauntlet runner). | 🟢 PASSING |
 
 ---
 

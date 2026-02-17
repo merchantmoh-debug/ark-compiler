@@ -2,7 +2,7 @@
 
 ## Installation
 
-Ark is a Python-based language. To run Ark, you need Python 3.10+.
+Ark is a Python-based language. To run Ark, you need Python 3.11+.
 
 1. Clone the repository:
 
