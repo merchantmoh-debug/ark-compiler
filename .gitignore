@@ -9,6 +9,15 @@ SWARM_REGISTRY_OMEGA.txt
 target/
 .vscode/
 .agent/
+.antigravity/
+.context/
+.pytest_cache/
+.memory_key
+
+# Internal tool directories (NOT part of the project)
+artifacts/
+scratch/
+patches/
 
 # Local Scratch & Build Tools
 scratch/
