@@ -36,3 +36,14 @@ nts_clean.txt
 security.json
 swarm_*_log.json
 trace.log
+
+# Backup/stale files
+*.bak
+*.user_bak
+*.attack
+
+# Additional test/build artifacts
+*.mp3
+*.wav
+build_log.txt
+ark-pkg
