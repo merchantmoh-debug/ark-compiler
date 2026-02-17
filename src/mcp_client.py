@@ -416,6 +416,17 @@ class MCPClient:
                 return
             except Exception as e:
                 logger.warning(f"Connection attempt {attempt+1}/{retries} failed: {e}")
+
+                # Cleanup potential zombie resources
+                if self._listen_task:
+                    self._listen_task.cancel()
+                    self._listen_task = None
+
+                try:
+                    await self.transport.close()
+                except Exception as close_error:
+                    logger.warning(f"Error closing transport during cleanup: {close_error}")
+
                 if attempt < retries - 1:
                     await asyncio.sleep(backoff)
                     backoff *= 2
