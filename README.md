@@ -7,7 +7,7 @@
    ██╔══██║██╔══██╗██╔═██╗     ██╔═══╝ ██╔══██╗██║██║╚██╔╝██║██╔══╝  
    ██║  ██║██║  ██║██║  ██╗    ██║     ██║  ██║██║██║ ╚═╝ ██║███████╗
    ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝    ╚═╝     ╚═╝  ╚═╝╚═╝╚═╝     ╚═╝╚══════╝
-                                                                      
+
            THE ARK COMPILER v112.0 (PRIME)
            -------------------------------
            System: Linear Type System & Neuro-Symbolic Intrinsic Engine
@@ -35,18 +35,23 @@
 ## 🚀 Key Technical Features
 
 ### 1. 100% Rust Core (`core/`)
+
 The runtime is built on a high-performance Rust foundation (`1.93-slim`).
-*   **Parity:** 106/106 Python intrinsics ported to Rust (108 total including Rust-only additions).
-*   **Performance:** `sys.network`, `sys.fs`, `sys.crypto` run at native speeds.
-*   **Safety:** Memory safety enforced by Rust's ownership model + Ark's Linear Checker.
+
+* **Parity:** 106/106 Python intrinsics ported to Rust (108 total including Rust-only additions).
+* **Performance:** `sys.network`, `sys.fs`, `sys.crypto` run at native speeds.
+* **Safety:** Memory safety enforced by Rust's ownership model + Ark's Linear Checker.
 
 ### 2. Linear Type System (`core/src/checker.rs`)
+
 Ark treats sensitive data (Money, Sockets, File Handles) as "Linear Resources".
-*   **No GC:** Resources must be used exactly once.
-*   **No Leaks:** Dropping a linear variable without consumption causes a **Compile-Time Error**.
-*   **No Double-Spend:** Passed variables are moved, not copied.
+
+* **No GC:** Resources must be used exactly once.
+* **No Leaks:** Dropping a linear variable without consumption causes a **Compile-Time Error**.
+* **No Double-Spend:** Passed variables are moved, not copied.
 
 ### 3. Neuro-Symbolic Intrinsics (`core/src/intrinsics.rs`)
+
 AI calls are treated as standard compiler intrinsics (`sys.ask_ai`), allowing future optimizations like caching, batching, and formal verification of outputs.
 
 ---
@@ -56,16 +61,20 @@ AI calls are treated as standard compiler intrinsics (`sys.ask_ai`), allowing fu
 Beyond the basic examples, the Standard Library and specific Apps demonstrate advanced capabilities.
 
 ### 1. Pure Ark Cryptography (`lib/wallet_lib.ark`)
+
 **Status:** `🟢 PRODUCTION`
 A full implementation of the **Secp256k1** Elliptic Curve and **BIP39** Mnemonic generation written entirely in Ark.
-*   **Features:** Point Addition, Point Doubling, Scalar Multiplication, PBKDF2-HMAC-SHA512.
-*   **Significance:** Proves Ark can handle complex mathematical operations without relying on C bindings.
+
+* **Features:** Point Addition, Point Doubling, Scalar Multiplication, PBKDF2-HMAC-SHA512.
+* **Significance:** Proves Ark can handle complex mathematical operations without relying on C bindings.
 
 ### 2. Self-Hosting Parser (`apps/lsp.ark`)
+
 **Status:** `🟡 BETA`
 A 1000+ line Recursive Descent Parser and Lexer for the Ark language, written in Ark.
-*   **Features:** Tokenizes source code, builds AST nodes, reports range-based errors.
-*   **Significance:** Demonstrates language self-sufficiency and complex data structure handling (recursive structs/lists).
+
+* **Features:** Tokenizes source code, builds AST nodes, reports range-based errors.
+* **Significance:** Demonstrates language self-sufficiency and complex data structure handling (recursive structs/lists).
 
 ---
 
@@ -99,6 +108,7 @@ cargo build --release
 
 **1. The Snake Game (Live App):**
 A fully functional Snake game written in Ark.
+
 ```bash
 # Start the Snake Server
 python3 meta/ark.py run examples/snake.ark
@@ -107,11 +117,13 @@ python3 meta/ark.py run examples/snake.ark
 
 **2. Market Maker (Heavyweight Financial Logic):**
 A High-Frequency Trading bot simulation demonstrating Linear Types and Event Loops.
+
 ```bash
 python3 meta/ark.py run apps/market_maker.ark
 ```
 
 **3. Wallet CLI (Pure Ark Crypto):**
+
 ```bash
 python3 meta/ark.py run apps/wallet.ark create "mypassword"
 ```
@@ -151,16 +163,19 @@ New to Ark? Start here:
 ## 🛡️ Security Model
 
 Ark uses a **Capability-Token System** (`ARK_CAPABILITIES`) to sandbox execution.
-*   **Default:** Safe Mode (No IO/Net).
-*   **Dev Mode:** `export ARK_CAPABILITIES="exec,net,fs_write,fs_read,thread,ai"`
+
+* **Default:** Safe Mode (No IO/Net).
+* **Dev Mode:** `export ARK_CAPABILITIES="exec,net,fs_write,fs_read,thread,ai"`
 
 **Security Scanner:**
 The JIT engine includes a static analysis pass (`meta/ark_security.py`) that scans for:
-*   SQL/Command Injection patterns.
-*   Path Traversal vulnerabilities.
-*   Hardcoded Secrets.
+
+* SQL/Command Injection patterns.
+* Path Traversal vulnerabilities.
+* Hardcoded Secrets.
 
 ---
 
 ## 📜 License
+
 Dual Licensed: AGPL v3 (Open Source) or Commercial (Sovereign Systems).
