@@ -8,6 +8,7 @@ JULES_DEPLOYMENT_LOG.txt
 SWARM_REGISTRY_OMEGA.txt
 target/
 .vscode/
+.agent/
 
 # Local Scratch & Build Tools
 scratch/

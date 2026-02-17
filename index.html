@@ -1,42 +1,313 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Ark: Sovereign Runtime</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="site/css/style.css" />
-    <link
-      rel="icon"
-      href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🦀</text></svg>"
-    />
-    <script type="importmap">
-      {
-        "imports": {
-          "yjs": "https://esm.sh/yjs@13.6.0",
-          "trystero": "https://esm.sh/trystero@0.19.2",
-          "tweetnacl": "https://esm.sh/tweetnacl@1.0.3",
-          "ws": "https://esm.sh/ws"
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ark Snake (WASM)</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🐍</text></svg>">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #0a0a0f;
+            color: #eee;
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
         }
-      }
-    </script>
-  </head>
-  <body>
-    <div id="app">
-      <!-- Components injected by app.js -->
-      <ark-hero></ark-hero>
-      <ark-terminal></ark-terminal>
+        h1 {
+            font-size: 1.8rem;
+            margin-bottom: 16px;
+            background: linear-gradient(135deg, #00ff88, #00ccff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: none;
+        }
+        canvas {
+            border: 2px solid #222;
+            background: #000;
+            box-shadow: 0 0 40px rgba(0, 255, 136, 0.08), 0 0 80px rgba(0, 0, 0, 0.6);
+            border-radius: 4px;
+        }
+        #controls {
+            margin-top: 14px;
+            display: flex;
+            gap: 10px;
+        }
+        #controls button {
+            background: #111;
+            color: #aaa;
+            border: 1px solid #333;
+            padding: 8px 18px;
+            cursor: pointer;
+            border-radius: 4px;
+            font-family: inherit;
+            font-size: 13px;
+            transition: all 0.15s ease;
+        }
+        #controls button:hover {
+            background: #1a1a2e;
+            color: #fff;
+            border-color: #00ff88;
+        }
+        #status {
+            margin-top: 10px;
+            color: #555;
+            font-size: 13px;
+        }
+        .badge {
+            display: inline-block;
+            margin-top: 4px;
+            font-size: 10px;
+            color: #444;
+            letter-spacing: 1px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Ark Sovereign Snake</h1>
+    <canvas id="game" width="400" height="400"></canvas>
+    <div id="controls">
+        <button id="btn-pause">Pause (P)</button>
+        <button id="btn-restart">Restart (R)</button>
     </div>
+    <div id="status">Loading WASM...</div>
+    <div class="badge">POWERED BY ARK WASM RUNTIME</div>
 
-    <!-- Core Modules -->
-    <script type="module" src="site/js/programs.js"></script>
-    <script type="module" src="site/js/compiler.js"></script>
-    <script type="module" src="site/js/network.js"></script>
-    <script type="module" src="site/js/runtime.js"></script>
+    <script type="module">
+        const canvas = document.getElementById('game');
+        const ctx = canvas.getContext('2d');
+        const status = document.getElementById('status');
+        const btnPause = document.getElementById('btn-pause');
+        const btnRestart = document.getElementById('btn-restart');
+        const SCALE = 20;
 
-    <!-- App Entry Point -->
-    <script type="module" src="site/js/app.js"></script>
-  </body>
+        let wasm = null;
+        let gameState = null;
+        let lastInput = "None";
+        let isPaused = false;
+
+        // --- WASM Bridge ---
+        async function loadArk() {
+            try {
+                // 1. Load WASM (path relative to repo root for GitHub Pages)
+                const response = await fetch('site/wasm/ark.wasm');
+                if (!response.ok) throw new Error(`WASM Fetch Error: ${response.status}`);
+                const bytes = await response.arrayBuffer();
+
+                const { instance } = await WebAssembly.instantiate(bytes, {
+                    env: {},
+                    __wbindgen_placeholder__: new Proxy({}, {
+                        get: (target, prop) => {
+                            return (...args) => {
+                                console.warn("Called mocked import:", prop, args);
+                                return 0;
+                            };
+                        }
+                    }),
+                    __wbindgen_externref_xform__: new Proxy({}, {
+                        get: (target, prop) => {
+                            return (...args) => { return 0; };
+                        }
+                    })
+                });
+                wasm = instance.exports;
+                status.innerText = "Loading Game Logic...";
+
+                // 2. Load Snake Logic (MAST JSON) - path relative to repo root
+                const logicResp = await fetch('site/snake.json');
+                if (!logicResp.ok) throw new Error(`Logic Fetch Error: ${logicResp.status}`);
+                const logicJson = await logicResp.text();
+
+                // 3. Initialize VM
+                const result = callWasmString(wasm.ark_init, logicJson);
+                if (result !== "OK") {
+                    throw new Error(`Ark Init Failed: ${result}`);
+                }
+
+                // 4. Initialize Game State
+                const initRes = callWasmJson(wasm.ark_call, "init", []);
+                if (initRes.error) throw new Error(initRes.error);
+                gameState = initRes;
+
+                status.innerText = "Running (Use Arrow Keys)";
+                requestAnimationFrame(loop);
+
+            } catch (e) {
+                status.innerText = `Error: ${e.message}`;
+                console.error(e);
+            }
+        }
+
+        function callWasmString(func, str) {
+            const encoder = new TextEncoder();
+            const bytes = encoder.encode(str);
+            const len = bytes.length;
+            const ptr = wasm.ark_alloc(len);
+
+            const mem = new Uint8Array(wasm.memory.buffer);
+            mem.set(bytes, ptr);
+
+            const resPtr = func(ptr, len);
+
+            const view = new DataView(wasm.memory.buffer);
+            const resLen = view.getUint32(resPtr, true);
+            const resBytes = new Uint8Array(wasm.memory.buffer, resPtr + 4, resLen);
+            const decoder = new TextDecoder();
+            const result = decoder.decode(resBytes);
+
+            wasm.ark_dealloc(ptr, len);
+            wasm.ark_dealloc(resPtr, resLen + 4);
+
+            return result;
+        }
+
+        function callWasmJson(func, name, args) {
+            const argsStr = JSON.stringify(args);
+
+            const encoder = new TextEncoder();
+            const nameBytes = encoder.encode(name);
+            const argsBytes = encoder.encode(argsStr);
+
+            const namePtr = wasm.ark_alloc(nameBytes.length);
+            const argsPtr = wasm.ark_alloc(argsBytes.length);
+
+            const mem = new Uint8Array(wasm.memory.buffer);
+            mem.set(nameBytes, namePtr);
+            mem.set(argsBytes, argsPtr);
+
+            const resPtr = func(namePtr, nameBytes.length, argsPtr, argsBytes.length);
+
+            const view = new DataView(wasm.memory.buffer);
+            const resLen = view.getUint32(resPtr, true);
+            const resBytes = new Uint8Array(wasm.memory.buffer, resPtr + 4, resLen);
+            const decoder = new TextDecoder();
+            const resultStr = decoder.decode(resBytes);
+
+            wasm.ark_dealloc(namePtr, nameBytes.length);
+            wasm.ark_dealloc(argsPtr, argsBytes.length);
+            wasm.ark_dealloc(resPtr, resLen + 4);
+
+            try {
+                return JSON.parse(resultStr);
+            } catch (e) {
+                console.error("JSON Parse Error on Result:", resultStr);
+                return { error: "Invalid JSON from Ark" };
+            }
+        }
+
+        // --- Game Loop ---
+        let lastTime = 0;
+        const TICK_RATE = 100;
+
+        function loop(timestamp) {
+            if (!gameState) return;
+
+            if (!isPaused && timestamp - lastTime > TICK_RATE) {
+                if (!gameState.game_over) {
+                    const newState = callWasmJson(wasm.ark_call, "update", [gameState, lastInput]);
+                    if (newState && !newState.error) {
+                        gameState = newState;
+                    } else {
+                        console.error("Update failed", newState);
+                    }
+                }
+                lastTime = timestamp;
+            }
+
+            draw();
+            requestAnimationFrame(loop);
+        }
+
+        function draw() {
+            if (!gameState) return;
+
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw Snake with gradient
+            if (gameState.snake) {
+                for (let i = 0; i < gameState.snake.length; i++) {
+                    const part = gameState.snake[i];
+                    const intensity = 1 - (i / gameState.snake.length) * 0.6;
+                    ctx.fillStyle = `rgba(0, ${Math.floor(255 * intensity)}, ${Math.floor(136 * intensity)}, 1)`;
+                    ctx.fillRect(part[0] * SCALE, part[1] * SCALE, SCALE - 1, SCALE - 1);
+                }
+            }
+
+            // Draw Apple
+            if (gameState.apple) {
+                ctx.fillStyle = '#ff3355';
+                ctx.shadowColor = '#ff3355';
+                ctx.shadowBlur = 8;
+                ctx.fillRect(gameState.apple[0] * SCALE, gameState.apple[1] * SCALE, SCALE - 1, SCALE - 1);
+                ctx.shadowBlur = 0;
+            }
+
+            // Score
+            ctx.fillStyle = '#888';
+            ctx.font = '14px monospace';
+            ctx.fillText(`Score: ${gameState.score || 0}`, 10, 20);
+
+            if (gameState.game_over) {
+                ctx.fillStyle = 'rgba(255, 0, 0, 0.3)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 28px monospace';
+                ctx.fillText("GAME OVER", 110, 190);
+                ctx.font = '14px monospace';
+                ctx.fillStyle = '#888';
+                ctx.fillText("Press R to restart", 130, 220);
+            }
+        }
+
+        // --- Input ---
+        window.addEventListener('keydown', e => {
+            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+                if (!isPaused) lastInput = e.key;
+                e.preventDefault();
+            }
+            if (e.key.toLowerCase() === 'p') togglePause();
+            if (e.key.toLowerCase() === 'r') restartGame();
+        });
+
+        function togglePause() {
+            isPaused = !isPaused;
+            btnPause.innerText = isPaused ? "Resume (P)" : "Pause (P)";
+            status.innerText = isPaused ? "Paused" : "Running";
+        }
+
+        function restartGame() {
+            if (!wasm) return;
+            const initRes = callWasmJson(wasm.ark_call, "init", []);
+            if (initRes.error) {
+                console.error(initRes.error);
+                return;
+            }
+            gameState = initRes;
+            lastInput = "None";
+            isPaused = false;
+            btnPause.innerText = "Pause (P)";
+            status.innerText = "Running";
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        btnPause.addEventListener('click', () => {
+            togglePause();
+            btnPause.blur();
+        });
+
+        btnRestart.addEventListener('click', () => {
+            restartGame();
+            btnRestart.blur();
+        });
+
+        // Start
+        loadArk();
+    </script>
+</body>
 </html>
