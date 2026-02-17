@@ -60,6 +60,11 @@ jobs:
       - name: Build Release Binary
         run: cargo build --release --bin ark_loader
 
+      - name: Build WASM (Verify wasm32 target compiles)
+        if: runner.os == 'Linux'
+        run: cargo build --target wasm32-unknown-unknown --release --lib
+        working-directory: core
+
       - name: Prepare Artifacts
         shell: bash
         run: |
@@ -126,6 +131,45 @@ jobs:
         env:
           ALLOW_DANGEROUS_LOCAL_EXECUTION: "true"
 
+      - name: Run Smoke Tests
+        if: runner.os == 'Linux'
+        run: bash tests/smoke.sh
+
+      - name: Run Intrinsic Count Verification
+        if: runner.os == 'Linux'
+        run: python -m pytest tests/test_intrinsic_count.py -v
+
+      - name: Run Wallet Smoke Tests
+        if: runner.os == 'Linux'
+        run: python -m pytest tests/test_wallet_smoke.py -v
+        env:
+          ARK_CAPABILITIES: "exec,fs_write,fs_read,crypto"
+
+      - name: Run Golden Demo (README Promise Test)
+        if: runner.os == 'Linux'
+        run: bash tests/golden_demo.sh
+
+  # ─── Docker CI ─────────────────────────────────────────────────────────
+  docker-ci:
+    name: Docker Smoke Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker Image
+        run: docker build -t ark-compiler .
+
+      - name: Test Version Command
+        run: docker run --rm ark-compiler python meta/ark.py version
+
+      - name: Test Hello World
+        run: docker run --rm ark-compiler python meta/ark.py run apps/hello.ark
+
+      - name: Test REPL Starts
+        run: echo '!exit' | timeout 10 docker run -i --rm ark-compiler || true
+
   # ─── Security Scan ────────────────────────────────────────────────────
   security:
     name: Security Audit
@@ -162,7 +206,7 @@ jobs:
   # ─── Release ──────────────────────────────────────────────────────────
   release:
     name: Release
-    needs: [rust-ci, python-ci, security]
+    needs: [rust-ci, python-ci, docker-ci, security]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:

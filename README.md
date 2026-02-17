@@ -36,7 +36,7 @@
 
 ### 1. 100% Rust Core (`core/`)
 The runtime is built on a high-performance Rust foundation (`1.93-slim`).
-*   **Parity:** 105/105 Intrinsics ported to native Rust.
+*   **Parity:** 121 Rust-native intrinsics (70/105 Python intrinsics ported; 35 remaining).
 *   **Performance:** `sys.network`, `sys.fs`, `sys.crypto` run at native speeds.
 *   **Safety:** Memory safety enforced by Rust's ownership model + Ark's Linear Checker.
 
@@ -72,6 +72,7 @@ A 1000+ line Recursive Descent Parser and Lexer for the Ark language, written in
 ## 🛠️ Quick Start
 
 ### Installation
+
 ```bash
 # Clone the Repository
 git clone https://github.com/merchantmoh-debug/ark-compiler.git
