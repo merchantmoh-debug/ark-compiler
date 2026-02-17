@@ -58,28 +58,36 @@ jobs:
         continue-on-error: true
 
       - name: Build Release Binary
-        id: build
-        run: cargo build --release --bin ark_loader
         working-directory: core
+        run: cargo build --release --bin ark_loader
 
       - name: Prepare Artifacts
-        if: steps.build.outcome == 'success'
         shell: bash
         run: |
           mkdir -p dist
           if [ "${{ runner.os }}" == "Windows" ]; then
-            cp core/target/release/ark_loader.exe dist/ark-core.exe
+            BINARY="core/target/release/ark_loader.exe"
+            DEST="dist/ark-core.exe"
           else
-            cp core/target/release/ark_loader dist/ark-core
+            BINARY="core/target/release/ark_loader"
+            DEST="dist/ark-core"
+          fi
+          if [ -f "$BINARY" ]; then
+            cp "$BINARY" "$DEST"
+            echo "Artifact ready: $DEST"
+          else
+            echo "::warning::Binary not found at $BINARY - listing available binaries:"
+            ls -la core/target/release/ | head -30 || true
+            echo "::error::ark_loader binary was not produced by cargo build"
+            exit 1
           fi
 
       - name: Upload Artifact
-        if: steps.build.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: ark-core-${{ matrix.os }}
           path: dist/*
-          if-no-files-found: error
+          if-no-files-found: warn
 
       - name: Fail if tests failed
         if: steps.tests.outcome == 'failure'
