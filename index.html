@@ -201,21 +201,30 @@
 
         // --- State Normalization ---
         // Ark WASM serializes ALL values as strings in JSON.
-        // When we send state back, Ark VM sees string "0" as truthy,
-        // so update() returns immediately. This recursively converts
-        // string-encoded numbers back to actual numbers.
-        function normalizeState(obj) {
+        // The Ark VM has distinct types: Boolean, Integer, String.
+        // - "if state.game_over" requires Value::Boolean (not String or Integer)
+        // - Numeric fields (dir, score, w, h, coordinates) need Value::Integer
+        // This function converts the JSON state to match Ark's type expectations.
+        const BOOLEAN_FIELDS = new Set(['game_over']);
+
+        function normalizeState(obj, fieldName) {
             if (Array.isArray(obj)) {
-                return obj.map(normalizeState);
+                return obj.map(item => normalizeState(item));
             }
             if (obj !== null && typeof obj === 'object') {
                 const out = {};
                 for (const [k, v] of Object.entries(obj)) {
-                    out[k] = normalizeState(v);
+                    out[k] = normalizeState(v, k);
                 }
                 return out;
             }
-            if (typeof obj === 'string' && obj !== '' && !isNaN(Number(obj)) && isFinite(Number(obj))) {
+            // Boolean fields: convert 0/"0" → false, 1/"1" → true
+            if (BOOLEAN_FIELDS.has(fieldName)) {
+                const n = Number(obj);
+                return n !== 0 && obj !== '' && obj !== 'false' && obj !== false;
+            }
+            // Numeric strings → integers
+            if (typeof obj === 'string' && obj !== '' && !Number.isNaN(Number(obj)) && Number.isFinite(Number(obj))) {
                 return Number(obj);
             }
             return obj;

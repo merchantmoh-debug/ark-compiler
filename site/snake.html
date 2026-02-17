@@ -155,14 +155,20 @@
         }
 
         // --- State Normalization ---
-        function normalizeState(obj) {
-            if (Array.isArray(obj)) return obj.map(normalizeState);
+        const BOOLEAN_FIELDS = new Set(['game_over']);
+
+        function normalizeState(obj, fieldName) {
+            if (Array.isArray(obj)) return obj.map(item => normalizeState(item));
             if (obj !== null && typeof obj === 'object') {
                 const out = {};
-                for (const [k, v] of Object.entries(obj)) out[k] = normalizeState(v);
+                for (const [k, v] of Object.entries(obj)) out[k] = normalizeState(v, k);
                 return out;
             }
-            if (typeof obj === 'string' && obj !== '' && !isNaN(Number(obj)) && isFinite(Number(obj))) return Number(obj);
+            if (BOOLEAN_FIELDS.has(fieldName)) {
+                const n = Number(obj);
+                return n !== 0 && obj !== '' && obj !== 'false' && obj !== false;
+            }
+            if (typeof obj === 'string' && obj !== '' && !Number.isNaN(Number(obj)) && Number.isFinite(Number(obj))) return Number(obj);
             return obj;
         }
 
