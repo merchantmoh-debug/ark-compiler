@@ -22,8 +22,8 @@ use lazy_static::lazy_static;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::{
-    atomic::{AtomicBool, AtomicUsize, Ordering},
     Mutex,
+    atomic::{AtomicBool, AtomicUsize, Ordering},
 };
 use thiserror::Error;
 
@@ -218,6 +218,7 @@ lazy_static! {
 
 pub static SHUTTING_DOWN: AtomicBool = AtomicBool::new(false);
 
+#[cfg(not(target_arch = "wasm32"))]
 pub fn init_shutdown_handler() {
     ctrlc::set_handler(move || {
         println!("Received Ctrl+C, initiating graceful shutdown...");

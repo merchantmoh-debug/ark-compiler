@@ -27,10 +27,10 @@ wasm-bindgen = "0.2"
 #     "ipc",
 #     "ffi",
 # ], optional = true }
-ctrlc = "3.5.2"
 lazy_static = "1.5.0"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+ctrlc = "3.5.2"
 reqwest = { version = "=0.11.22", features = ["json", "blocking"] }
 tokio = { version = "=1.38.2", features = ["full"] }
 schannel = "=0.1.23"
