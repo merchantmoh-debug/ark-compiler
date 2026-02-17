@@ -56,6 +56,43 @@ pub fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
 }
 
 // ============================================================================
+// HMAC-SHA256 (Governance Receipts)
+// ============================================================================
+
+const HMAC_SHA256_BLOCK: usize = 64;
+
+/// HMAC-SHA256 for governance step-trace signing. Returns hex-encoded digest.
+pub fn hmac_sha256(key: &[u8], data: &[u8]) -> String {
+    let mut key_block = [0u8; HMAC_SHA256_BLOCK];
+
+    if key.len() > HMAC_SHA256_BLOCK {
+        let h = hash_sha256(key);
+        key_block[..32].copy_from_slice(&h);
+    } else {
+        key_block[..key.len()].copy_from_slice(key);
+    }
+
+    let mut ipad = [0x36u8; HMAC_SHA256_BLOCK];
+    let mut opad = [0x5cu8; HMAC_SHA256_BLOCK];
+
+    for i in 0..HMAC_SHA256_BLOCK {
+        ipad[i] ^= key_block[i];
+        opad[i] ^= key_block[i];
+    }
+
+    let mut inner = Sha256::new();
+    inner.update(ipad);
+    inner.update(data);
+    let inner_hash = inner.finalize();
+
+    let mut outer = Sha256::new();
+    outer.update(opad);
+    outer.update(inner_hash);
+
+    hex::encode(outer.finalize())
+}
+
+// ============================================================================
 // KEY DERIVATION (BIP-32 Style)
 // ============================================================================
 

@@ -634,6 +634,20 @@ impl IntrinsicRegistry {
             "math.mul_scalar".to_string(),
             Value::NativeFunction(intrinsic_math_mul_scalar),
         );
+
+        // ── Governance intrinsics ──
+        scope.set(
+            "governance.trace".to_string(),
+            Value::NativeFunction(intrinsic_governance_trace),
+        );
+        scope.set(
+            "governance.mcc_check".to_string(),
+            Value::NativeFunction(intrinsic_governance_mcc_check),
+        );
+        scope.set(
+            "governance.verify_chain".to_string(),
+            Value::NativeFunction(intrinsic_governance_verify_chain),
+        );
     }
 }
 
@@ -3746,6 +3760,190 @@ fn intrinsic_math_mul_scalar(args: Vec<Value>) -> Result<Value, RuntimeError> {
     };
     let result: Vec<i64> = data.iter().map(|v| v * scalar).collect();
     Ok(make_tensor(result, shape))
+}
+
+// ============================================================================
+// GOVERNANCE INTRINSICS
+// ============================================================================
+
+/// governance.trace(run_id, step, phase, conf_before, conf_after, pre_state, post_state, hmac_key)
+/// Returns a Struct containing the signed step trace.
+fn intrinsic_governance_trace(args: Vec<Value>) -> Result<Value, RuntimeError> {
+    if args.len() < 8 {
+        return Err(RuntimeError::InvalidOperation(
+            "governance.trace requires 8 args: run_id, step, phase, conf_before, conf_after, pre_state, post_state, hmac_key".into(),
+        ));
+    }
+    let run_id = match &args[0] {
+        Value::String(s) => s.clone(),
+        other => return Err(RuntimeError::TypeMismatch("String".into(), other.clone())),
+    };
+    let step = match &args[1] {
+        Value::Integer(i) => *i as u64,
+        other => return Err(RuntimeError::TypeMismatch("Integer".into(), other.clone())),
+    };
+    let phase_str = match &args[2] {
+        Value::String(s) => s.to_uppercase(),
+        other => return Err(RuntimeError::TypeMismatch("String".into(), other.clone())),
+    };
+    let phase = match phase_str.as_str() {
+        "SENSE" => crate::governance::Phase::Sense,
+        "ASSESS" => crate::governance::Phase::Assess,
+        "DECIDE" => crate::governance::Phase::Decide,
+        "ACTION" => crate::governance::Phase::Action,
+        "VERIFY" => crate::governance::Phase::Verify,
+        _ => {
+            return Err(RuntimeError::InvalidOperation(
+                "phase must be one of: SENSE, ASSESS, DECIDE, ACTION, VERIFY".into(),
+            ));
+        }
+    };
+    let conf_before = match &args[3] {
+        Value::Integer(i) => *i as f64 / 100.0,
+        Value::String(s) => s.parse::<f64>().unwrap_or(0.5),
+        _ => 0.5,
+    };
+    let conf_after = match &args[4] {
+        Value::Integer(i) => *i as f64 / 100.0,
+        Value::String(s) => s.parse::<f64>().unwrap_or(0.5),
+        _ => 0.5,
+    };
+    let pre_state = match &args[5] {
+        Value::String(s) => s.as_bytes().to_vec(),
+        _ => b"unknown".to_vec(),
+    };
+    let post_state = match &args[6] {
+        Value::String(s) => s.as_bytes().to_vec(),
+        _ => b"unknown".to_vec(),
+    };
+    let hmac_key = match &args[7] {
+        Value::String(s) => s.as_bytes().to_vec(),
+        _ => b"ark-default-key".to_vec(),
+    };
+
+    let decision = if conf_after >= conf_before {
+        crate::governance::Decision::Accept
+    } else {
+        crate::governance::Decision::Reject
+    };
+
+    let trace = crate::governance::StepTrace::new(
+        &run_id,
+        step,
+        phase,
+        conf_before,
+        conf_after,
+        decision,
+        &pre_state,
+        &post_state,
+        crate::governance::DualBand::new(0.5, 0.5),
+        vec![],
+        vec![],
+        &hmac_key,
+    );
+
+    let map = trace.to_map();
+    let struct_map: HashMap<String, Value> = map
+        .into_iter()
+        .map(|(k, v)| (k, Value::String(v)))
+        .collect();
+    Ok(Value::Struct(struct_map))
+}
+
+/// governance.mcc_check(conf_before, conf_after)
+/// Returns Boolean: true if conf_after >= conf_before (monotone non-decreasing).
+fn intrinsic_governance_mcc_check(args: Vec<Value>) -> Result<Value, RuntimeError> {
+    if args.len() < 2 {
+        return Err(RuntimeError::InvalidOperation(
+            "governance.mcc_check requires 2 args: conf_before, conf_after".into(),
+        ));
+    }
+    let before = match &args[0] {
+        Value::Integer(i) => *i as f64,
+        Value::String(s) => s.parse::<f64>().unwrap_or(0.0),
+        _ => 0.0,
+    };
+    let after = match &args[1] {
+        Value::Integer(i) => *i as f64,
+        Value::String(s) => s.parse::<f64>().unwrap_or(0.0),
+        _ => 0.0,
+    };
+    Ok(Value::Boolean(after >= before))
+}
+
+/// governance.verify_chain(traces_json, hmac_key)
+/// Returns Boolean: true if all traces in the JSON array have valid signatures.
+fn intrinsic_governance_verify_chain(args: Vec<Value>) -> Result<Value, RuntimeError> {
+    if args.len() < 2 {
+        return Err(RuntimeError::InvalidOperation(
+            "governance.verify_chain requires 2 args: traces_json, hmac_key".into(),
+        ));
+    }
+    let hmac_key = match &args[1] {
+        Value::String(s) => s.as_bytes().to_vec(),
+        _ => b"ark-default-key".to_vec(),
+    };
+
+    // Build a receipt chain and verify
+    let mut chain = crate::governance::ReceiptChain::new(&hmac_key);
+
+    match &args[0] {
+        Value::List(traces) => {
+            for (i, trace_val) in traces.iter().enumerate() {
+                if let Value::Struct(map) = trace_val {
+                    let get_str = |key: &str| -> String {
+                        map.get(key)
+                            .and_then(|v| {
+                                if let Value::String(s) = v {
+                                    Some(s.clone())
+                                } else {
+                                    None
+                                }
+                            })
+                            .unwrap_or_default()
+                    };
+
+                    let run_id = get_str("run_id");
+                    let step = (i + 1) as u64;
+                    let conf_before: f64 = get_str("conf_before").parse().unwrap_or(0.0);
+                    let conf_after: f64 = get_str("conf_after").parse().unwrap_or(0.0);
+
+                    let decision = if conf_after >= conf_before {
+                        crate::governance::Decision::Accept
+                    } else {
+                        crate::governance::Decision::Reject
+                    };
+
+                    let trace = crate::governance::StepTrace::new(
+                        &run_id,
+                        step,
+                        crate::governance::Phase::Verify,
+                        conf_before,
+                        conf_after,
+                        decision,
+                        get_str("pre_state_hash").as_bytes(),
+                        get_str("post_state_hash").as_bytes(),
+                        crate::governance::DualBand::new(0.5, 0.5),
+                        vec![],
+                        vec![],
+                        &hmac_key,
+                    );
+                    chain.append(trace);
+                }
+            }
+        }
+        _ => {
+            return Err(RuntimeError::InvalidOperation(
+                "First argument must be a List of trace Structs".into(),
+            ));
+        }
+    }
+
+    match chain.verify_integrity() {
+        Ok(true) => Ok(Value::Boolean(true)),
+        Ok(false) => Ok(Value::Boolean(false)),
+        Err(_) => Ok(Value::Boolean(false)),
+    }
 }
 
 #[cfg(test)]
