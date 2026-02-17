@@ -37,31 +37,48 @@ def get_rust_intrinsics():
         return rust_intrinsics
 
     try:
-        with open(filepath, "r") as f:
+        with open(filepath, "r", encoding="utf-8") as f:
             content = f.read()
 
-            # 1. Parse resolve() function
-            resolve_match = re.search(r'fn resolve\(hash: &str\) -> Option<NativeFn> \{([\s\S]*?)\}', content)
-            if resolve_match:
-                resolve_body = resolve_match.group(1)
-                for line in resolve_body.splitlines():
-                    if "=>" in line:
-                        parts = line.split("=>")[0]
-                        keys = re.findall(r'"([^"]+)"', parts)
-                        for k in keys:
-                            rust_intrinsics.add(k)
+        # Helper: find the body of a function by counting braces
+        def extract_function_body(content, fn_signature):
+            idx = content.find(fn_signature)
+            if idx == -1:
+                return ""
+            # Find the opening brace
+            brace_start = content.find("{", idx)
+            if brace_start == -1:
+                return ""
+            depth = 0
+            i = brace_start
+            while i < len(content):
+                if content[i] == "{":
+                    depth += 1
+                elif content[i] == "}":
+                    depth -= 1
+                    if depth == 0:
+                        return content[brace_start:i + 1]
+                i += 1
+            return ""
 
-            # 2. Parse register_all() function
-            register_match = re.search(r'fn register_all\(scope: &mut Scope\) \{([\s\S]*?)\}', content)
-            if register_match:
-                register_body = register_match.group(1)
-                # Look for scope.set("key", ...)
-                # Regex: scope\.set\(\s*"([^"]+)"
-                keys = re.findall(r'scope\.set\(\s*"([^"]+)"', register_body)
-                for k in keys:
-                    rust_intrinsics.add(k)
-            else:
-                print("Warning: Could not find register_all function body")
+        # 1. Parse resolve() function
+        resolve_body = extract_function_body(content, "fn resolve(hash: &str)")
+        if resolve_body:
+            for line in resolve_body.splitlines():
+                if "=>" in line:
+                    parts = line.split("=>")[0]
+                    keys = re.findall(r'"([^"]+)"', parts)
+                    for k in keys:
+                        rust_intrinsics.add(k)
+
+        # 2. Parse register_all() function
+        register_body = extract_function_body(content, "fn register_all(scope: &mut Scope)")
+        if register_body:
+            keys = re.findall(r'scope\.set\(\s*"([^"]+)"', register_body)
+            for k in keys:
+                rust_intrinsics.add(k)
+        else:
+            print("Warning: Could not find register_all function body")
 
     except Exception as e:
         print(f"Error reading {filepath}: {e}")

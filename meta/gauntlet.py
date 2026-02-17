@@ -44,6 +44,7 @@ INTERACTIVE_SKIP = {
     "tests/test_net_socket.ark",   # Binds port 8086, times out on macOS CI
     "tests/test_net.ark",          # Binds port 8085, times out on macOS CI
     "tests/test_net_http.ark",     # Binds port 8087, times out on macOS CI
+    "tests/test_broken.ark",       # Intentionally broken syntax test — expected to fail
 }
 
 @dataclass

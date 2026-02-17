@@ -26,14 +26,14 @@ use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use aes_gcm::{
-    aead::{Aead, KeyInit},
     Aes256Gcm, Nonce,
+    aead::{Aead, KeyInit},
 };
 use ed25519_dalek::{Signer, SigningKey, Verifier, VerifyingKey};
 use hmac::{Hmac, Mac};
 use pbkdf2::pbkdf2;
-use rand::rngs::OsRng;
 use rand::RngCore;
+use rand::rngs::OsRng;
 use sha2::{Digest, Sha512};
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -88,6 +88,9 @@ impl IntrinsicRegistry {
             "intrinsic_not" => Some(intrinsic_not),
             "intrinsic_print" => Some(intrinsic_print),
             "print" => Some(intrinsic_print),
+            // Core aliases for Python parity
+            "get" => Some(intrinsic_list_get),
+            "len" => Some(intrinsic_len),
             "intrinsic_ask_ai" => Some(intrinsic_ask_ai),
             "sys_exec" | "intrinsic_exec" => Some(intrinsic_exec),
             "sys_fs_write" | "intrinsic_fs_write" | "sys.fs.write" => Some(intrinsic_fs_write),
@@ -108,16 +111,17 @@ impl IntrinsicRegistry {
             "intrinsic_crypto_random_bytes" | "sys.crypto.random_bytes" => {
                 Some(intrinsic_crypto_random_bytes)
             }
-            "intrinsic_crypto_ed25519_generate" | "sys.crypto.ed25519_generate" => {
-                Some(intrinsic_crypto_ed25519_generate)
-            }
-            "intrinsic_crypto_ed25519_sign" | "sys.crypto.ed25519_sign" => {
-                Some(intrinsic_crypto_ed25519_sign)
-            }
-            "intrinsic_crypto_ed25519_verify" | "sys.crypto.ed25519_verify" => {
-                Some(intrinsic_crypto_ed25519_verify)
-            }
+            "intrinsic_crypto_ed25519_generate"
+            | "sys.crypto.ed25519_generate"
+            | "sys.crypto.ed25519.gen" => Some(intrinsic_crypto_ed25519_generate),
+            "intrinsic_crypto_ed25519_sign"
+            | "sys.crypto.ed25519_sign"
+            | "sys.crypto.ed25519.sign" => Some(intrinsic_crypto_ed25519_sign),
+            "intrinsic_crypto_ed25519_verify"
+            | "sys.crypto.ed25519_verify"
+            | "sys.crypto.ed25519.verify" => Some(intrinsic_crypto_ed25519_verify),
             "intrinsic_merkle_root" | "sys.crypto.merkle_root" => Some(intrinsic_merkle_root),
+            "sys.crypto.pbkdf2_hmac_sha512" => Some(intrinsic_crypto_pbkdf2),
             "intrinsic_buffer_alloc" | "sys.mem.alloc" => Some(intrinsic_buffer_alloc),
             "intrinsic_buffer_inspect" | "sys.mem.inspect" => Some(intrinsic_buffer_inspect),
             "intrinsic_buffer_read" | "sys.mem.read" => Some(intrinsic_buffer_read),
@@ -130,9 +134,9 @@ impl IntrinsicRegistry {
             "intrinsic_struct_get" | "sys.struct.get" => Some(intrinsic_struct_get),
             "intrinsic_struct_set" | "sys.struct.set" => Some(intrinsic_struct_set),
             "intrinsic_struct_has" | "sys.struct.has" => Some(intrinsic_struct_has),
-            "intrinsic_time_now" | "time.now" => Some(intrinsic_time_now),
+            "intrinsic_time_now" | "time.now" | "sys.time.now" => Some(intrinsic_time_now),
             "intrinsic_math_pow" | "math.pow" => Some(intrinsic_math_pow),
-            "intrinsic_pow_mod" | "math.pow_mod" => Some(intrinsic_pow_mod),
+            "intrinsic_pow_mod" | "math.pow_mod" | "sys.math.pow_mod" => Some(intrinsic_pow_mod),
             "intrinsic_math_sqrt" | "math.sqrt" => Some(intrinsic_math_sqrt),
             "intrinsic_math_sin" | "math.sin" => Some(intrinsic_math_sin),
             "intrinsic_math_cos" | "math.cos" => Some(intrinsic_math_cos),
@@ -164,17 +168,33 @@ impl IntrinsicRegistry {
             }
             "sys.extract_code" | "intrinsic_extract_code" => Some(intrinsic_extract_code),
             // Networking Intrinsics
-            "net.http.request" | "intrinsic_http_request" => Some(intrinsic_http_request),
-            "net.http.serve" | "intrinsic_http_serve" => Some(intrinsic_http_serve),
-            "net.socket.bind" | "intrinsic_socket_bind" => Some(intrinsic_socket_bind),
-            "net.socket.accept" | "intrinsic_socket_accept" => Some(intrinsic_socket_accept),
-            "net.socket.connect" | "intrinsic_socket_connect" => Some(intrinsic_socket_connect),
-            "net.socket.send" | "intrinsic_socket_send" => Some(intrinsic_socket_send),
-            "net.socket.recv" | "intrinsic_socket_recv" => Some(intrinsic_socket_recv),
-            "net.socket.close" | "intrinsic_socket_close" => Some(intrinsic_socket_close),
-            "net.socket.set_timeout" | "intrinsic_socket_set_timeout" => {
-                Some(intrinsic_socket_set_timeout)
+            "net.http.request" | "intrinsic_http_request" | "sys.net.http.request" => {
+                Some(intrinsic_http_request)
             }
+            "net.http.serve" | "intrinsic_http_serve" | "sys.net.http.serve" => {
+                Some(intrinsic_http_serve)
+            }
+            "net.socket.bind" | "intrinsic_socket_bind" | "sys.net.socket.bind" => {
+                Some(intrinsic_socket_bind)
+            }
+            "net.socket.accept" | "intrinsic_socket_accept" | "sys.net.socket.accept" => {
+                Some(intrinsic_socket_accept)
+            }
+            "net.socket.connect" | "intrinsic_socket_connect" | "sys.net.socket.connect" => {
+                Some(intrinsic_socket_connect)
+            }
+            "net.socket.send" | "intrinsic_socket_send" | "sys.net.socket.send" => {
+                Some(intrinsic_socket_send)
+            }
+            "net.socket.recv" | "intrinsic_socket_recv" | "sys.net.socket.recv" => {
+                Some(intrinsic_socket_recv)
+            }
+            "net.socket.close" | "intrinsic_socket_close" | "sys.net.socket.close" => {
+                Some(intrinsic_socket_close)
+            }
+            "net.socket.set_timeout"
+            | "intrinsic_socket_set_timeout"
+            | "sys.net.socket.set_timeout" => Some(intrinsic_socket_set_timeout),
             // Advanced Runtime
             "sys.thread.spawn" => Some(intrinsic_thread_spawn),
             "sys.thread.join" => Some(intrinsic_thread_join),
@@ -3299,7 +3319,7 @@ fn json_to_value(s: &str) -> Result<Value, String> {
             }
             let key = kv[0].trim();
             let val_str = kv[1..].join(":"); // rejoin in case value contains colons
-                                             // Strip quotes from key
+            // Strip quotes from key
             let key = if key.starts_with('"') && key.ends_with('"') && key.len() >= 2 {
                 &key[1..key.len() - 1]
             } else {
@@ -4051,7 +4071,7 @@ mod tests {
 
         // sin(PI/2) approx 10000 (PI/2 = 1.5707... * 10000 = 15707)
         let args = vec![Value::Integer(15708)]; // 1.5708
-                                                // sin(1.5708) is close to 1
+        // sin(1.5708) is close to 1
         let res = intrinsic_math_sin(args).unwrap();
         if let Value::Integer(v) = res {
             assert!(v >= 9999 && v <= 10000);
@@ -4381,7 +4401,7 @@ mod tests {
         match res {
             Value::String(s) => {
                 assert_eq!(s.len(), 32); // 16 bytes = 32 hex chars
-                                         // Verify hex
+                // Verify hex
                 assert!(hex::decode(&s).is_ok());
             }
             _ => panic!("Expected String"),

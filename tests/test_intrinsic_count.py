@@ -76,11 +76,11 @@ def test_intrinsic_parity_matches_readme():
         assert py_count >= claimed, \
             f"README claims {claimed} intrinsics but Python has {py_count}"
 
-    # If parity drops significantly below current state (~67%), something regressed
+    # If parity drops below 95%, something regressed
     if parity_match:
         parity = float(parity_match.group(1))
-        if parity < 60.0:
-            pytest.fail(f"Intrinsic parity is {parity}% — dropped below 60% baseline. "
+        if parity < 95.0:
+            pytest.fail(f"Intrinsic parity is {parity}% — dropped below 95% baseline. "
                        f"Python: {py_count}, Rust: {rust_count}")
 
 
@@ -108,8 +108,8 @@ def test_no_intrinsics_missing_in_rust():
 
     if missing_section:
         missing_lines = [l.strip() for l in missing_section.group(1).strip().splitlines() if l.strip().startswith('-')]
-        # As of v112.0, there are ~35 intrinsics missing in Rust — tracked for future porting
-        assert len(missing_lines) <= 40, \
+        # As of 100% parity achievement, zero intrinsics should be missing
+        assert len(missing_lines) <= 5, \
             f"Too many intrinsics missing in Rust ({len(missing_lines)}):\n" + "\n".join(missing_lines[:20])
 
 

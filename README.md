@@ -36,7 +36,7 @@
 
 ### 1. 100% Rust Core (`core/`)
 The runtime is built on a high-performance Rust foundation (`1.93-slim`).
-*   **Parity:** 121 Rust-native intrinsics (70/105 Python intrinsics ported; 35 remaining).
+*   **Parity:** 105/105 Python intrinsics ported to Rust (196 total Rust intrinsics including Rust-only additions).
 *   **Performance:** `sys.network`, `sys.fs`, `sys.crypto` run at native speeds.
 *   **Safety:** Memory safety enforced by Rust's ownership model + Ark's Linear Checker.
 
