@@ -118,13 +118,17 @@ if __name__ == "__main__":
             print("Usage: ark run <file>")
             sys.exit(1)
         run_file(sys.argv[2])
+    elif cmd == "repl":
+        try:
+            from meta.repl import run_repl
+        except ModuleNotFoundError:
+            from repl import run_repl
+        run_repl()
+    elif cmd == "version":
+        print("ARK OMEGA-POINT v112.0")
     elif cmd == "compile":
         # Delegate to meta/compile.py
-        # Adjust sys.argv to remove 'compile' and look like compile.py arguments
-        # sys.argv is ['meta/ark.py', 'compile', 'file.ark', ...]
-        # We want ['meta/compile.py', 'file.ark', '--target', 'bytecode']
-
-        sys.argv.pop(1) # Remove 'compile'
+        sys.argv.pop(1)  # Remove 'compile'
         sys.argv[0] = 'meta/compile.py'
 
         if "--target" not in sys.argv:
@@ -133,9 +137,6 @@ if __name__ == "__main__":
         from meta import compile as ark_compile
         ark_compile.main()
     else:
-        # Fallback for existing behavior or unknown command
-        if len(sys.argv) >= 3:
-             run_file(sys.argv[2])
-        else:
-             print(f"Unknown command: {cmd}")
-             sys.exit(1)
+        print(f"Unknown command: {cmd}")
+        print("Available commands: run, repl, compile, version")
+        sys.exit(1)

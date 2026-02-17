@@ -84,6 +84,15 @@ docker build -t ark-compiler .
 docker run -it --rm ark-compiler
 ```
 
+### Local Development (Without Docker)
+```bash
+# Install Python dependencies
+pip install -r requirements.txt
+
+# Install Rust toolchain (if building from source)
+cargo build --release
+```
+
 ### Running Examples
 
 **1. The Snake Game (Live App):**
