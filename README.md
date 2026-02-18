@@ -26,9 +26,11 @@
 
 # Ark Compiler (Technical Preview)
 
-**Ark** is a neuro-symbolic programming language designed for **Sovereign Computation**. It combines a strictly typed **Rust Core** with a **Linear Type System** to enforce resource safety without Garbage Collection.
+**Ark** is a programming language where **resource safety is a compile-time guarantee**, not a runtime hope. It combines a high-performance **Rust core** with a **Linear Type System** that eliminates garbage collection, prevents double-spends, and catches resource leaks before your code ever runs.
 
-> **Philosophical Manifesto:** For the project's vision, philosophy, and "Omega Point" doctrine, see [docs/MANIFESTO.md](docs/MANIFESTO.md).
+**Use it for:** Financial systems, cryptographic protocols, AI-native applications, and anywhere resource correctness is non-negotiable.
+
+> **Philosophical Manifesto:** For the project's vision and design philosophy, see [docs/MANIFESTO.md](docs/MANIFESTO.md).
 
 ---
 
@@ -38,7 +40,7 @@
 
 The runtime is built on a high-performance Rust foundation (`1.93-slim`).
 
-* **Parity:** 106/106 Python intrinsics ported to Rust (108 total including Rust-only additions).
+* **Parity:** 107/107 Python intrinsics ported to Rust (109 total including Rust-only additions).
 * **Performance:** `sys.network`, `sys.fs`, `sys.crypto` run at native speeds.
 * **Safety:** Memory safety enforced by Rust's ownership model + Ark's Linear Checker.
 
@@ -52,13 +54,13 @@ Ark treats sensitive data (Money, Sockets, File Handles) as "Linear Resources".
 
 ### 3. Neuro-Symbolic Intrinsics (`core/src/intrinsics.rs`)
 
-AI calls are treated as standard compiler intrinsics (`sys.ask_ai`), allowing future optimizations like caching, batching, and formal verification of outputs.
+AI calls are treated as standard compiler intrinsics (`sys.ai.ask`), allowing future optimizations like caching, batching, and formal verification of outputs.
 
 ---
 
-## 💎 The Hidden Gems (Advanced Implementation)
+## 💎 Advanced Capabilities
 
-Beyond the basic examples, the Standard Library and specific Apps demonstrate advanced capabilities.
+Beyond the basics, the Standard Library and featured apps demonstrate production-grade capabilities.
 
 ### 1. Pure Ark Cryptography (`lib/wallet_lib.ark`)
 
@@ -80,11 +82,7 @@ A 1000+ line Recursive Descent Parser and Lexer for the Ark language, written in
 
 ## 🤖 Ark Agent Framework (`src/`)
 
-**No other programming language ships with a built-in multi-agent AI system.** Ark does.
-
-The Agent Framework is a full-stack orchestration layer that lets Ark programs spawn, coordinate, and sandbox AI agents — with zero external dependencies beyond an LLM backend.
-
-### Architecture
+Ark ships with a multi-agent AI orchestration layer — spawn, coordinate, and sandbox AI agents from Ark code or the CLI.
 
 ```text
 Task → RouterAgent → [CoderAgent | ResearcherAgent | ReviewerAgent] → Review → Result
@@ -92,54 +90,30 @@ Task → RouterAgent → [CoderAgent | ResearcherAgent | ReviewerAgent] → Revi
                      Ark Compiler (meta/ark.py, core/)
 ```
 
-| Component | What It Does |
-| :--- | :--- |
-| **AgentOrchestrator** | Pipeline executor: route tasks to specialists, auto-review code changes |
-| **SwarmOrchestrator** | Multi-agent coordination with 4 strategies: `router`, `broadcast`, `consensus`, `pipeline` |
-| **MCP Client** | [Model Context Protocol](https://modelcontextprotocol.io/) — JSON-RPC 2.0 over Stdio/HTTP/SSE. Connect any MCP-compatible tool server. |
-| **Encrypted Memory** | Fernet-encrypted namespaced storage + TF-IDF vector search for semantic recall |
-| **Local Sandbox** | AST-level security analysis — bans dangerous imports, functions, and attributes before execution |
-| **Docker Sandbox** | Container-isolated code execution for untrusted workloads |
-
-### Specialist Agents
-
-| Agent | Role |
-| :--- | :--- |
-| `RouterAgent` | Classifies tasks and delegates to the right specialist |
-| `CoderAgent` | Generates, modifies, and refactors code — **Ark-aware** with `execute_ark()` and `compile_check()` tools |
-| `ResearcherAgent` | Analyzes codebases and gathers context |
-| `ReviewerAgent` | Audits code changes for bugs, security issues, and style |
-
-### LLM Backend Support
-
-The framework is backend-agnostic. Configure via environment variables:
-
-* **Google Gemini:** `ARK_GOOGLE_API_KEY`
-* **OpenAI / Compatible:** `ARK_OPENAI_BASE_URL` + `ARK_OPENAI_API_KEY`
-* **Ollama (Local):** Point `ARK_OPENAI_BASE_URL` to `http://localhost:11434`
-
-### Quick Start
+* **4 Specialist Agents:** Router, Coder (Ark-aware), Researcher, Reviewer
+* **Swarm Orchestration:** `router`, `broadcast`, `consensus`, `pipeline` strategies
+* **MCP Client:** JSON-RPC 2.0 over Stdio/HTTP/SSE
+* **Security:** AST-level sandboxing + Docker isolation for untrusted workloads
+* **Memory:** Fernet-encrypted storage + TF-IDF semantic recall
+* **Backend-agnostic:** Gemini, OpenAI, Ollama — configure via env vars
 
 ```bash
 # Run the agent orchestrator
 python -m src.agent "Write a Python script that sorts a CSV by the second column"
-
-# Run the swarm (multi-agent)
-python -m src.swarm_demo
 ```
 
-> **Full Agent Framework guide:** [User Manual — Agent Framework](docs/USER_MANUAL.md#17-agent-framework)
+> **Full guide:** [User Manual — Agent Framework](docs/USER_MANUAL.md#17-agent-framework)
 
-### Ark-Native AI (The Neural Bridge)
+### Ark-Native AI Intrinsics
 
-Ark is the **only programming language with built-in AI intrinsics**. Call AI directly from `.ark` code:
+Call AI directly from `.ark` code — no FFI, no SDK, just intrinsics:
 
 ```ark
 // Direct AI call
 answer := sys.ai.ask("What is the capital of France?")
 print(answer)
 
-// Agent with persona
+// Agent with persona + conversation history
 sys.vm.source("lib/std/ai.ark")
 coder := Agent.new("You are a Rust expert.")
 response := coder.chat("Explain ownership.")
@@ -149,7 +123,7 @@ swarm := Swarm.new([coder, Agent.new("You are a code reviewer.")])
 results := swarm.run("Write a sort function")
 ```
 
-> **Configuration:** Set `GOOGLE_API_KEY` or `ARK_LLM_ENDPOINT` (e.g., `http://localhost:11434/v1/chat/completions` for Ollama).
+> **Configuration:** Set `GOOGLE_API_KEY` or `ARK_LLM_ENDPOINT`. No key? AI degrades gracefully.
 
 ---
 
@@ -181,26 +155,26 @@ cargo build --release
 
 ### Running Examples
 
-**1. The Snake Game (Live App):**
-A fully functional Snake game written in Ark.
+**1. Wallet CLI (Pure Ark Crypto):**
+Secp256k1 + BIP39 — zero C bindings, 100% Ark.
 
 ```bash
-# Start the Snake Server
-python3 meta/ark.py run examples/snake.ark
-# Open http://localhost:8000 in your browser
+python3 meta/ark.py run apps/wallet.ark create "mypassword"
 ```
 
-**2. Market Maker (Heavyweight Financial Logic):**
-A High-Frequency Trading bot simulation demonstrating Linear Types and Event Loops.
+**2. Market Maker (Linear Types in Action):**
+HFT bot simulation — Linear Types enforce that positions are never double-counted.
 
 ```bash
 python3 meta/ark.py run apps/market_maker.ark
 ```
 
-**3. Wallet CLI (Pure Ark Crypto):**
+**3. Snake Game (Live Web App):**
+A fully functional game served over HTTP, written in Ark.
 
 ```bash
-python3 meta/ark.py run apps/wallet.ark create "mypassword"
+python3 meta/ark.py run examples/snake.ark
+# Open http://localhost:8000 in your browser
 ```
 
 ---
@@ -213,7 +187,7 @@ New to Ark? Start here:
 | :--- | :--- |
 | **[User Manual](docs/USER_MANUAL.md)** | **Complete language guide** — variables, functions, control flow, imports, stdlib, crypto, blockchain, AI, and more. |
 | **[Quick Start](docs/QUICK_START.md)** | 5-minute setup and Hello World. |
-| **[API Reference](docs/API_REFERENCE.md)** | All 106 built-in intrinsics with signatures and examples. |
+| **[API Reference](docs/API_REFERENCE.md)** | All 109 built-in intrinsics with signatures and examples. |
 | **[Stdlib Reference](docs/STDLIB_REFERENCE.md)** | Documentation for all 12 standard library modules. |
 | **[Manifesto](docs/MANIFESTO.md)** | Why Ark exists — the design philosophy. |
 
