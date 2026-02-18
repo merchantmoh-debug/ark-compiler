@@ -17,13 +17,14 @@
  */
 
 use crate::bytecode::Chunk;
+use crate::persistent::{PMap, PVec};
 
 use lazy_static::lazy_static;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::{
-    atomic::{AtomicBool, AtomicUsize, Ordering},
     Mutex,
+    atomic::{AtomicBool, AtomicUsize, Ordering},
 };
 use thiserror::Error;
 
@@ -260,6 +261,10 @@ pub enum Value {
     List(Vec<Value>),
     Buffer(Vec<u8>),
     Struct(HashMap<String, Value>),
+    /// Persistent (immutable) vector with structural sharing
+    PVec(PVec),
+    /// Persistent (immutable) map with structural sharing
+    PMap(PMap),
     /// Control Flow: Return value wrapper
     Return(Box<Value>),
 }
@@ -278,7 +283,9 @@ impl PartialEq for Value {
             (Value::NativeFunction(a), Value::NativeFunction(b)) => *a as usize == *b as usize,
             (Value::List(a), Value::List(b)) => a == b,
             (Value::Buffer(a), Value::Buffer(b)) => a == b,
-            (Value::Struct(a), Value::Struct(b)) => a == b, // Note: HashMap comparisons can be slow
+            (Value::Struct(a), Value::Struct(b)) => a == b,
+            (Value::PVec(a), Value::PVec(b)) => a == b,
+            (Value::PMap(a), Value::PMap(b)) => a == b,
             (Value::Return(a), Value::Return(b)) => a == b,
             _ => false,
         }
@@ -293,6 +300,8 @@ impl Value {
             | Value::Unit
             | Value::Function(_)
             | Value::NativeFunction(_)
+            | Value::PVec(_)
+            | Value::PMap(_)
             | Value::String(_) => false,
             Value::List(_) | Value::LinearObject { .. } | Value::Buffer(_) | Value::Struct(_) => {
                 true

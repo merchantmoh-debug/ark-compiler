@@ -145,6 +145,8 @@ pub fn format_value(val: &Value) -> String {
                 .collect();
             format!("{{ {} }}", inner.join(", "))
         }
+        Value::PVec(pv) => format!("{}", pv),
+        Value::PMap(pm) => format!("{}", pm),
         Value::LinearObject { id, .. } => format!("<linear {}>", id),
         Value::Return(val) => format!("return({})", format_value(val)),
     }

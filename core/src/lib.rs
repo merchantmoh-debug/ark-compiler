@@ -18,6 +18,7 @@
 
 #![allow(unexpected_cfgs)]
 
+pub mod adn;
 pub mod ast;
 pub mod blockchain;
 #[cfg(feature = "ipc")]
@@ -35,7 +36,9 @@ pub mod ffi;
 pub mod governance;
 pub mod intrinsics;
 pub mod loader;
+pub mod macros;
 pub mod parser;
+pub mod persistent;
 // pub mod repl; // Deprecated interpreter REPL
 #[cfg(test)]
 pub mod bench_intrinsics;
@@ -43,4 +46,6 @@ pub mod runtime;
 pub mod types;
 pub mod vm;
 pub mod wasm;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod wasm_interop;
 pub use wasm::*;

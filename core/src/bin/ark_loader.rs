@@ -26,18 +26,22 @@
 //!   ark version                  Print version
 //!   ark help                     Print usage
 
+use ark_0_zheng::adn;
 use ark_0_zheng::compiler::Compiler;
 use ark_0_zheng::debugger::{self, DebugAction, DebugState, StepMode};
 use ark_0_zheng::loader::load_ark_program;
 use ark_0_zheng::parser;
+use ark_0_zheng::persistent::{PMap, PVec};
+use ark_0_zheng::runtime::Value;
 use ark_0_zheng::vm::VM;
 use std::cell::RefCell;
 use std::env;
 use std::fs;
+use std::io::{self, BufRead, Write};
 use std::process;
 use std::rc::Rc;
 
-const VERSION: &str = "1.2.0";
+const VERSION: &str = "1.3.0";
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -51,6 +55,8 @@ fn main() {
     match command {
         "run" => cmd_run(&args[2..]),
         "debug" => cmd_debug(&args[2..]),
+        "repl" => cmd_repl(),
+        "adn" => cmd_adn(&args[2..]),
         "check" => cmd_check(&args[2..]),
         "parse" => cmd_parse(&args[2..]),
         "version" | "--version" | "-v" => {
@@ -74,7 +80,9 @@ fn print_usage() {
     println!();
     println!("Usage:");
     println!("  ark run <file.ark|file.json>    Parse and execute a program");
+    println!("  ark repl                        Interactive REPL with persistent state");
     println!("  ark debug <file.ark>            Interactive step-through debugger");
+    println!("  ark adn <file.ark>              Parse and output as ADN (Ark Data Notation)");
     println!("  ark check <file.ark|file.json>  Run the linear type checker");
     println!("  ark parse <file.ark>            Parse and dump AST as JSON");
     println!("  ark version                     Print version info");
@@ -490,6 +498,190 @@ fn cmd_debug(args: &[String]) {
         }
         Err(e) => {
             eprintln!("VM Initialization Error: {}", e);
+            process::exit(1);
+        }
+    }
+}
+
+// =============================================================================
+// REPL — Interactive Read-Eval-Print Loop
+// =============================================================================
+
+/// Interactive REPL with persistent state across lines.
+fn cmd_repl() {
+    println!("\x1b[1;36m╔══════════════════════════════════════════╗\x1b[0m");
+    println!(
+        "\x1b[1;36m║\x1b[0m  \x1b[1;37mArk Sovereign REPL v{}\x1b[0m            \x1b[1;36m║\x1b[0m",
+        VERSION
+    );
+    println!(
+        "\x1b[1;36m║\x1b[0m  \x1b[0;90mPersistent Data Structures Enabled\x1b[0m   \x1b[1;36m║\x1b[0m"
+    );
+    println!("\x1b[1;36m╚══════════════════════════════════════════╝\x1b[0m");
+    println!();
+    println!("  Type \x1b[1;33m:help\x1b[0m for commands, \x1b[1;33m:quit\x1b[0m to exit.\n");
+
+    let stdin = io::stdin();
+    let mut line_num: usize = 0;
+
+    loop {
+        line_num += 1;
+        print!("\x1b[1;32mark[{}]\x1b[0m> ", line_num);
+        io::stdout().flush().unwrap_or(());
+
+        let mut input = String::new();
+        match stdin.lock().read_line(&mut input) {
+            Ok(0) => {
+                // EOF
+                println!();
+                break;
+            }
+            Ok(_) => {}
+            Err(e) => {
+                eprintln!("Read error: {}", e);
+                break;
+            }
+        }
+
+        let trimmed = input.trim();
+        if trimmed.is_empty() {
+            line_num -= 1;
+            continue;
+        }
+
+        // Handle REPL meta-commands
+        match trimmed {
+            ":quit" | ":q" | ":exit" => {
+                println!("\x1b[0;90mGoodbye.\x1b[0m");
+                break;
+            }
+            ":help" | ":h" => {
+                print_repl_help();
+                continue;
+            }
+            ":version" | ":v" => {
+                println!("Ark Sovereign Compiler v{}", VERSION);
+                continue;
+            }
+            ":pvec" => {
+                // Quick demo of persistent vectors
+                let pv = PVec::new()
+                    .conj(Value::Integer(1))
+                    .conj(Value::Integer(2))
+                    .conj(Value::Integer(3));
+                println!("  \x1b[1;34m=>\x1b[0m {}", pv);
+                println!(
+                    "  \x1b[0;90m(persistent vector with {} elements)\x1b[0m",
+                    pv.len()
+                );
+                continue;
+            }
+            ":pmap" => {
+                // Quick demo of persistent maps
+                let pm = PMap::from_entries(vec![
+                    ("name".to_string(), Value::String("Ark".to_string())),
+                    ("version".to_string(), Value::String(VERSION.to_string())),
+                    ("persistent".to_string(), Value::Boolean(true)),
+                ]);
+                println!("  \x1b[1;34m=>\x1b[0m {}", pm);
+                println!(
+                    "  \x1b[0;90m(persistent map with {} entries)\x1b[0m",
+                    pm.len()
+                );
+                continue;
+            }
+            _ => {}
+        }
+
+        // Try to parse and evaluate the input as Ark source
+        match parser::parse_source(trimmed, "<repl>") {
+            Ok(ast) => {
+                // Compile and execute
+                let compiler = Compiler::new();
+                let chunk = compiler.compile(&ast);
+                let hash = format!("repl_line_{}", line_num);
+                match VM::new(chunk, &hash, 0) {
+                    Ok(mut vm) => {
+                        match vm.run() {
+                            Ok(result) => {
+                                // Format output in ADN
+                                let adn_output = adn::to_adn_pretty(&result);
+                                println!("  \x1b[1;34m=>\x1b[0m {}", adn_output);
+                            }
+                            Err(e) => {
+                                eprintln!("  \x1b[1;31mRuntime Error:\x1b[0m {}", e);
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("  \x1b[1;31mVM Error:\x1b[0m {}", e);
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!("  \x1b[1;31mParse Error:\x1b[0m {}", e);
+            }
+        }
+    }
+}
+
+fn print_repl_help() {
+    println!();
+    println!("  \x1b[1;37mArk REPL Commands:\x1b[0m");
+    println!("  \x1b[1;33m:help\x1b[0m    (:h)    Show this help");
+    println!("  \x1b[1;33m:quit\x1b[0m    (:q)    Exit the REPL");
+    println!("  \x1b[1;33m:version\x1b[0m (:v)    Show version");
+    println!("  \x1b[1;33m:pvec\x1b[0m           Demo persistent vector");
+    println!("  \x1b[1;33m:pmap\x1b[0m           Demo persistent map");
+    println!();
+    println!("  \x1b[1;37mExamples:\x1b[0m");
+    println!("  \x1b[0;90m  let x = 42\x1b[0m");
+    println!("  \x1b[0;90m  fn double(n: Int) -> Int {{ n + n }}\x1b[0m");
+    println!("  \x1b[0;90m  double(21)\x1b[0m");
+    println!();
+}
+
+// =============================================================================
+// ADN — Ark Data Notation output
+// =============================================================================
+
+/// Parse and run an .ark file, output result in ADN format.
+fn cmd_adn(args: &[String]) {
+    if args.is_empty() {
+        eprintln!("Error: 'adn' requires a file argument");
+        eprintln!("Usage: ark adn <file.ark>");
+        process::exit(1);
+    }
+
+    let filename = &args[0];
+    let source = fs::read_to_string(filename).unwrap_or_else(|e| {
+        eprintln!("Error: Cannot read '{}': {}", filename, e);
+        process::exit(1);
+    });
+
+    match parser::parse_source(&source, filename) {
+        Ok(ast) => {
+            let compiler = Compiler::new();
+            let chunk = compiler.compile(&ast);
+            let hash = format!("ark_adn_{}", filename);
+            match VM::new(chunk, &hash, 0) {
+                Ok(mut vm) => match vm.run() {
+                    Ok(result) => {
+                        println!("{}", adn::to_adn_pretty(&result));
+                    }
+                    Err(e) => {
+                        eprintln!("Runtime Error: {}", e);
+                        process::exit(1);
+                    }
+                },
+                Err(e) => {
+                    eprintln!("VM Initialization Error: {}", e);
+                    process::exit(1);
+                }
+            }
+        }
+        Err(e) => {
+            eprintln!("Parse Error: {}", e);
             process::exit(1);
         }
     }
