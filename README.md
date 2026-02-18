@@ -106,7 +106,7 @@ python -m src.agent "Write a Python script that sorts a CSV by the second column
 
 ### Ark-Native AI Intrinsics
 
-Call AI directly from `.ark` code — no FFI, no SDK, just intrinsics:
+Call AI directly from `.ark` code — built-in intrinsics, no external SDK required:
 
 ```ark
 // Direct AI call
