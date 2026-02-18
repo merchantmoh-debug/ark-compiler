@@ -375,6 +375,8 @@ fn is_terminator(stmt: &Statement) -> bool {
 pub struct Compiler {
     pub chunk: Chunk,
     pub scopes: Vec<HashSet<String>>,
+    /// Current source line for debugging (increments per statement)
+    pub current_line: u32,
 }
 
 impl Default for Compiler {
@@ -388,6 +390,7 @@ impl Compiler {
         Self {
             chunk: Chunk::new(),
             scopes: vec![HashSet::new()],
+            current_line: 1,
         }
     }
 
@@ -422,6 +425,10 @@ impl Compiler {
     }
 
     fn visit_stmt(&mut self, stmt: &Statement, preserve: bool) -> Result<(), CompileError> {
+        // Emit source position for debugger
+        self.chunk.set_source_pos(self.current_line, 0);
+        self.current_line += 1;
+
         match stmt {
             Statement::Expression(e) => {
                 self.visit_expr(e)?;
@@ -723,6 +730,48 @@ impl Compiler {
                             self.visit_expr(&args[0])?;
                             self.visit_expr(&args[1])?;
                             self.chunk.write(OpCode::Lt);
+                        }
+                    }
+                    "intrinsic_le" | "le" => {
+                        if args.len() == 2 {
+                            self.visit_expr(&args[0])?;
+                            self.visit_expr(&args[1])?;
+                            self.chunk.write(OpCode::Le);
+                        }
+                    }
+                    "intrinsic_ge" | "ge" => {
+                        if args.len() == 2 {
+                            self.visit_expr(&args[0])?;
+                            self.visit_expr(&args[1])?;
+                            self.chunk.write(OpCode::Ge);
+                        }
+                    }
+                    "intrinsic_neq" | "neq" => {
+                        if args.len() == 2 {
+                            self.visit_expr(&args[0])?;
+                            self.visit_expr(&args[1])?;
+                            self.chunk.write(OpCode::Neq);
+                        }
+                    }
+                    "intrinsic_mod" | "modulo" => {
+                        if args.len() == 2 {
+                            self.visit_expr(&args[0])?;
+                            self.visit_expr(&args[1])?;
+                            self.chunk.write(OpCode::Mod);
+                        }
+                    }
+                    "intrinsic_and" | "and" => {
+                        if args.len() == 2 {
+                            self.visit_expr(&args[0])?;
+                            self.visit_expr(&args[1])?;
+                            self.chunk.write(OpCode::And);
+                        }
+                    }
+                    "intrinsic_or" | "or" => {
+                        if args.len() == 2 {
+                            self.visit_expr(&args[0])?;
+                            self.visit_expr(&args[1])?;
+                            self.chunk.write(OpCode::Or);
                         }
                     }
                     "print" | "intrinsic_print" => {

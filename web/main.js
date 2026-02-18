@@ -5,6 +5,24 @@ import {defaultKeymap, indentWithTab} from "@codemirror/commands"
 import {StreamLanguage} from "@codemirror/language"
 import {oneDark} from "@codemirror/theme-one-dark"
 
+// --- WASM Module ---
+let wasmModule = null;
+let wasmReady = false;
+
+async function initWasm() {
+    try {
+        // Try to load the WASM module (built with wasm-pack)
+        const wasm = await import('../core/pkg/ark_0_zheng.js');
+        await wasm.default(); // Initialize WASM
+        wasmModule = wasm;
+        wasmReady = true;
+        logToConsole("WASM Runtime loaded — client-side execution enabled.", "success");
+    } catch (e) {
+        console.warn("WASM module not available, falling back to server-side execution:", e);
+        logToConsole("WASM not available — using server-side execution.", "dim");
+    }
+}
+
 // --- Ark Language Definition ---
 const arkKeywords = new Set([
     "let", "mut", "func", "if", "else", "while", "for", "return",
@@ -58,41 +76,41 @@ const arkLanguage = StreamLanguage.define({
 
 // --- Examples ---
 const EXAMPLES = {
-    "Hello World": `func main() {
-    print("Hello, Ark Sovereign World!");
-}`,
-    "Fibonacci": `func fib(n) {
-    if n <= 1 { return n; }
-    return fib(n - 1) + fib(n - 2);
-}
-
-func main() {
-    let n = 10;
-    print("Fibonacci of " + str(n) + " is " + str(fib(n)));
-}`,
-    "Linked List": `struct Node {
-    value
-    next
-}
-
-func main() {
-    let head = Node(1, Node(2, Node(3, nil)));
-
-    let current = head;
-    while current != nil {
-        print(current.value);
-        current = current.next;
+    "Hello World": `// Hello World in Ark
+print("Hello, Ark Sovereign World!")`,
+    "Factorial": `// Recursive factorial
+func factorial(n) {
+    if n <= 1 {
+        return 1
     }
+    return n * factorial(n - 1)
+}
+
+result := factorial(10)
+print(result)`,
+    "Fibonacci": `// Fibonacci sequence
+func fib(n) {
+    if n <= 1 { return n }
+    return fib(n - 1) + fib(n - 2)
+}
+
+i := 0
+while i < 10 {
+    print(fib(i))
+    i += 1
 }`,
-    "HTTP Request": `func main() {
-    let response = http.get("https://api.ark.io/status");
-    print("Status: " + str(response.status));
-    print("Body: " + response.body);
-}`,
-    "Crypto": `func main() {
-    let data = "Sovereign Data";
-    let hash = crypto.sha256(data);
-    print("SHA-256: " + hash);
+    "Pipe Operator": `// Functional pipe operator
+func double(x) { return x * 2 }
+func add_one(x) { return x + 1 }
+
+result := 5 |> double |> add_one
+print(result)`,
+    "Match Expression": `// Pattern matching
+value := 42
+match value {
+    1 => print("one"),
+    42 => print("the answer"),
+    _ => print("something else")
 }`
 };
 
@@ -136,40 +154,67 @@ function updateCursorPos(state) {
 // --- Execution Logic ---
 async function runCode() {
     const code = view.state.doc.toString();
-    const outputDiv = document.getElementById("console-output");
 
-    // Add "Running..." marker
-    logToConsole("Running on Sovereign Runtime...", "info", true);
+    logToConsole("Running...", "info", true);
+    const startTime = performance.now();
 
-    try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+    if (wasmReady) {
+        // Client-side WASM execution
+        try {
+            const resultJson = wasmModule.ark_eval_source(code);
+            const result = JSON.parse(resultJson);
+            const elapsed = (performance.now() - startTime).toFixed(1);
 
-        const response = await fetch('/api/run', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ code: code }),
-            signal: controller.signal
-        });
+            if (result.stdout) {
+                logToConsole(result.stdout);
+            }
 
-        clearTimeout(timeoutId);
+            if (result.error) {
+                logToConsole(result.error, "error");
+            } else if (result.result !== null && result.result !== undefined) {
+                logToConsole(`→ ${JSON.stringify(result.result)}`, "dim");
+            }
 
-        if (!response.ok) {
-            throw new Error(`Server Error: ${response.status} ${response.statusText}`);
+            logToConsole(`Completed in ${elapsed}ms (WASM)`, "dim");
+
+        } catch (e) {
+            logToConsole(`WASM execution failed: ${e.message}`, "error");
         }
+    } else {
+        // Server-side fallback
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-        const result = await response.json();
+            const response = await fetch('/api/run', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code: code }),
+                signal: controller.signal
+            });
 
-        if (result.stdout) logToConsole(result.stdout);
-        if (result.stderr) logToConsole(result.stderr, "error");
-        if (result.error) logToConsole(result.error, "error");
+            clearTimeout(timeoutId);
 
-    } catch (e) {
-        if (e.name === 'AbortError') {
-            logToConsole("Execution timed out (10s limit).", "error");
-        } else {
-            logToConsole(`Failed to execute: ${e.message}`, "error");
-            logToConsole("Make sure the Ark server is running: `python meta/ark.py serve`", "dim");
+            if (!response.ok) {
+                throw new Error(`Server Error: ${response.status} ${response.statusText}`);
+            }
+
+            const result = await response.json();
+            const elapsed = (performance.now() - startTime).toFixed(1);
+
+            if (result.stdout) logToConsole(result.stdout);
+            if (result.stderr) logToConsole(result.stderr, "error");
+            if (result.error) logToConsole(result.error, "error");
+
+            logToConsole(`Completed in ${elapsed}ms (server)`, "dim");
+
+        } catch (e) {
+            if (e.name === 'AbortError') {
+                logToConsole("Execution timed out (10s limit).", "error");
+            } else {
+                logToConsole(`Failed to execute: ${e.message}`, "error");
+                logToConsole("Build WASM with: wasm-pack build --target web core/", "dim");
+            }
         }
     }
 }
@@ -325,7 +370,7 @@ function initSystemMonitor() {
 }
 
 // Initialize
-window.addEventListener("DOMContentLoaded", () => {
+window.addEventListener("DOMContentLoaded", async () => {
     try {
         initEditor();
     } catch (e) {
@@ -346,4 +391,8 @@ window.addEventListener("DOMContentLoaded", () => {
     }
 
     logToConsole("Ark Environment Ready.", "success");
+
+    // Load WASM module (non-blocking — UI is ready first)
+    await initWasm();
 });
+

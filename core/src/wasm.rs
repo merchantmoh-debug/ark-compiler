@@ -18,7 +18,8 @@
 
 use crate::checker::LinearChecker;
 use crate::compiler::Compiler;
-use crate::loader::{load_ark_program, LoadError};
+use crate::loader::{LoadError, load_ark_program};
+use crate::parser;
 use crate::runtime::Value;
 use crate::vm::VM;
 use wasm_bindgen::prelude::*;
@@ -28,6 +29,28 @@ use js_sys::{Array, Object, Reflect};
 #[cfg(target_arch = "wasm32")]
 use std::panic;
 
+use std::cell::RefCell;
+
+// Thread-local buffer to capture print output in WASM
+thread_local! {
+    static OUTPUT_BUFFER: RefCell<Vec<String>> = RefCell::new(Vec::new());
+}
+
+/// Append a line to the WASM output buffer (called by VM's print intrinsic).
+pub fn wasm_print(msg: &str) {
+    OUTPUT_BUFFER.with(|buf| {
+        buf.borrow_mut().push(msg.to_string());
+    });
+}
+
+/// Drain and return captured output.
+fn drain_output() -> String {
+    OUTPUT_BUFFER.with(|buf| {
+        let lines: Vec<String> = buf.borrow_mut().drain(..).collect();
+        lines.join("\n")
+    })
+}
+
 /// Initialize panic hook for WASM environment.
 /// This ensures panics are logged to the browser console.
 #[wasm_bindgen(start)]
@@ -36,26 +59,122 @@ pub fn init() {
     panic::set_hook(Box::new(console_error_panic_hook::hook));
 }
 
-/// Evaluates an Ark program (JSON MAST).
+/// Evaluates raw Ark source code (.ark syntax).
+///
+/// This is the primary entry point for the WASM playground.
+/// It uses the native Rust parser — no JSON MAST needed.
+///
+/// # Arguments
+/// * `source` - Raw Ark source code (e.g., `func main() { print("hi") }`)
+///
+/// # Returns
+/// * A JSON object: `{ "result": "...", "stdout": "...", "error": null }`
+#[wasm_bindgen]
+pub fn ark_eval_source(source: &str) -> String {
+    // Clear output buffer
+    OUTPUT_BUFFER.with(|buf| buf.borrow_mut().clear());
+
+    // 1. Parse
+    let ast = match parser::parse_source(source, "<wasm>") {
+        Ok(node) => node,
+        Err(e) => {
+            return serde_json::json!({
+                "result": null,
+                "stdout": "",
+                "error": format!("Parse Error: {}", e)
+            })
+            .to_string();
+        }
+    };
+
+    // 2. Compile
+    let compiler = Compiler::new();
+    let chunk = compiler.compile(&ast);
+
+    // 3. Execute
+    let hash = "wasm_playground";
+    match VM::new(chunk, hash, 0) {
+        Ok(mut vm) => match vm.run() {
+            Ok(val) => {
+                let stdout = drain_output();
+                serde_json::json!({
+                    "result": value_to_json(&val),
+                    "stdout": stdout,
+                    "error": null
+                })
+                .to_string()
+            }
+            Err(e) => {
+                let stdout = drain_output();
+                serde_json::json!({
+                    "result": null,
+                    "stdout": stdout,
+                    "error": format!("Runtime Error: {}", e)
+                })
+                .to_string()
+            }
+        },
+        Err(e) => serde_json::json!({
+            "result": null,
+            "stdout": "",
+            "error": format!("VM Init Error: {}", e)
+        })
+        .to_string(),
+    }
+}
+
+/// Parses raw Ark source code and returns the AST as JSON.
+///
+/// # Arguments
+/// * `source` - Raw Ark source code.
+///
+/// # Returns
+/// * The formatted JSON AST string, or `{ "error": "..." }` on failure.
+#[wasm_bindgen]
+pub fn ark_parse_source(source: &str) -> String {
+    match parser::parse_source(source, "<wasm>") {
+        Ok(node) => match serde_json::to_string_pretty(&node) {
+            Ok(s) => s,
+            Err(e) => make_error_json(&format!("Serialization Error: {}", e)),
+        },
+        Err(e) => serde_json::json!({
+            "error": format!("{}", e),
+        })
+        .to_string(),
+    }
+}
+
+/// Runs the linear type checker on raw Ark source code.
+#[wasm_bindgen]
+pub fn ark_check_source(source: &str) -> String {
+    match parser::parse_source(source, "<wasm>") {
+        Ok(node) => match LinearChecker::check(&node) {
+            Ok(_) => "[]".to_string(),
+            Err(e) => {
+                let err_obj = serde_json::json!({
+                    "error": format!("{}", e),
+                    "type": "LinearError"
+                });
+                serde_json::to_string_pretty(&vec![err_obj]).unwrap_or_else(|_| "[]".to_string())
+            }
+        },
+        Err(e) => make_error_json(&format!("Parse Error: {}", e)),
+    }
+}
+
+/// Evaluates an Ark program (JSON MAST) — legacy interface.
 ///
 /// # Arguments
 /// * `source` - A JSON string representing the Ark program (MAST).
 ///
 /// # Returns
 /// * A JSON string containing the result of the evaluation, or an error object.
-///
-/// # Example
-/// ```js
-/// const result = ark_eval('{"Expression": {"Literal": "3"}}');
-/// console.log(result); // "3"
-/// ```
 #[wasm_bindgen]
 pub fn ark_eval(source: &str) -> String {
     match load_ark_program(source) {
         Ok(mast) => {
             let compiler = Compiler::new();
             let chunk = compiler.compile(&mast.content);
-            // One-shot VM: new VM, run, drop.
             match VM::new(chunk, &mast.hash, 0) {
                 Ok(mut vm) => match vm.run() {
                     Ok(val) => value_to_json_string(&val),

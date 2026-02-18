@@ -785,31 +785,274 @@ func find_node_at_pos(node, line, col) {
     return node
 }
 
-func handle_completion(params) {
-    // Return hardcoded list
+// --- Intrinsic Registry ---
+// Returns a list of { label, kind, detail, documentation } for every public intrinsic.
+
+func build_intrinsic_registry() {
     items := []
 
-    keywords := ["if", "else", "while", "func", "return", "let", "true", "false", "import", "struct", "match"]
-    intrinsics := ["sys.print", "sys.exit", "math.sin", "crypto.sha256", "sys.io.read_line", "sys.log"]
+    // Helper to add an intrinsic with docs
+    // kind: 3 = Function
 
-    // Add keywords
+    // ── sys namespace ──
+    items := sys.list.append(items, { label: "sys.len",          kind: 3, detail: "sys",    documentation: "Returns (length, ref) of a string, list, or struct" })
+    items := sys.list.append(items, { label: "sys.exec",         kind: 3, detail: "sys",    documentation: "Execute a shell command, returns stdout as string" })
+    items := sys.list.append(items, { label: "sys.exit",         kind: 3, detail: "sys",    documentation: "Exit the process with optional exit code" })
+    items := sys.list.append(items, { label: "sys.log",          kind: 3, detail: "sys",    documentation: "Log a message to stderr" })
+    items := sys.list.append(items, { label: "sys.extract_code", kind: 3, detail: "sys",    documentation: "Extract code blocks from a markdown string" })
+    items := sys.list.append(items, { label: "sys.html_escape",  kind: 3, detail: "sys",    documentation: "HTML-escape a string (< > & \" ')" })
+    items := sys.list.append(items, { label: "print",            kind: 3, detail: "sys",    documentation: "Print value(s) to stdout" })
+
+    // ── sys.fs ──
+    items := sys.list.append(items, { label: "sys.fs.read",         kind: 3, detail: "fs",    documentation: "Read a file and return its contents as a string" })
+    items := sys.list.append(items, { label: "sys.fs.write",        kind: 3, detail: "fs",    documentation: "Write a string to a file (creates/overwrites)" })
+    items := sys.list.append(items, { label: "sys.fs.read_buffer",  kind: 3, detail: "fs",    documentation: "Read file as raw byte buffer" })
+    items := sys.list.append(items, { label: "sys.fs.write_buffer", kind: 3, detail: "fs",    documentation: "Write raw byte buffer to file" })
+
+    // ── sys.io ──
+    items := sys.list.append(items, { label: "sys.io.read_line",       kind: 3, detail: "io",    documentation: "Read a line from stdin" })
+    items := sys.list.append(items, { label: "sys.io.read_bytes",      kind: 3, detail: "io",    documentation: "Read exactly N bytes from stdin" })
+    items := sys.list.append(items, { label: "sys.io.write",           kind: 3, detail: "io",    documentation: "Write raw string to stdout (no newline)" })
+    items := sys.list.append(items, { label: "sys.io.read_file_async", kind: 3, detail: "io",    documentation: "Asynchronously read a file, returns future" })
+    items := sys.list.append(items, { label: "io.cls",                 kind: 3, detail: "io",    documentation: "Clear the terminal screen" })
+
+    // ── sys.list ──
+    items := sys.list.append(items, { label: "sys.list.get",    kind: 3, detail: "list",   documentation: "Get element at index from list → (value, list)" })
+    items := sys.list.append(items, { label: "sys.list.set",    kind: 3, detail: "list",   documentation: "Set element at index in list" })
+    items := sys.list.append(items, { label: "sys.list.append", kind: 3, detail: "list",   documentation: "Append an element to a list, returns new list" })
+    items := sys.list.append(items, { label: "sys.list.delete", kind: 3, detail: "list",   documentation: "Delete element at index from list" })
+
+    // ── sys.struct ──
+    items := sys.list.append(items, { label: "sys.struct.get", kind: 3, detail: "struct", documentation: "Get field value from struct → (value, struct)" })
+    items := sys.list.append(items, { label: "sys.struct.set", kind: 3, detail: "struct", documentation: "Set field on struct, returns updated struct" })
+    items := sys.list.append(items, { label: "sys.struct.has", kind: 3, detail: "struct", documentation: "Check if struct has a given field → bool" })
+
+    // ── sys.json ──
+    items := sys.list.append(items, { label: "sys.json.parse",     kind: 3, detail: "json", documentation: "Parse a JSON string into Ark values" })
+    items := sys.list.append(items, { label: "sys.json.stringify", kind: 3, detail: "json", documentation: "Serialize Ark value to JSON string" })
+
+    // ── sys.vm ──
+    items := sys.list.append(items, { label: "sys.vm.eval",   kind: 3, detail: "vm",   documentation: "Evaluate an Ark expression string at runtime" })
+    items := sys.list.append(items, { label: "sys.vm.source", kind: 3, detail: "vm",   documentation: "Load and execute an Ark source file" })
+
+    // ── sys.thread ──
+    items := sys.list.append(items, { label: "sys.thread.spawn", kind: 3, detail: "thread", documentation: "Spawn a new thread executing a function → thread_id" })
+    items := sys.list.append(items, { label: "sys.thread.join",  kind: 3, detail: "thread", documentation: "Wait for a thread to finish by thread_id" })
+
+    // ── sys.event ──
+    items := sys.list.append(items, { label: "sys.event.poll", kind: 3, detail: "event", documentation: "Poll the event queue, returns event or null" })
+    items := sys.list.append(items, { label: "sys.event.push", kind: 3, detail: "event", documentation: "Push a value onto the event queue" })
+
+    // ── sys.func ──
+    items := sys.list.append(items, { label: "sys.func.apply", kind: 3, detail: "func", documentation: "Apply a function with given argument list" })
+
+    // ── sys.time ──
+    items := sys.list.append(items, { label: "time.now",        kind: 3, detail: "time", documentation: "Returns current Unix timestamp in milliseconds" })
+    items := sys.list.append(items, { label: "sys.time.sleep",  kind: 3, detail: "time", documentation: "Sleep for N milliseconds" })
+
+    // ── sys.crypto ──
+    items := sys.list.append(items, { label: "sys.crypto.hash",            kind: 3, detail: "crypto", documentation: "SHA-256 hash of a string → hex string" })
+    items := sys.list.append(items, { label: "sys.crypto.verify",          kind: 3, detail: "crypto", documentation: "Verify a signature against data and public key" })
+    items := sys.list.append(items, { label: "sys.crypto.sha512",          kind: 3, detail: "crypto", documentation: "SHA-512 hash → hex string" })
+    items := sys.list.append(items, { label: "sys.crypto.hmac_sha512",     kind: 3, detail: "crypto", documentation: "HMAC-SHA512(key, data) → hex string" })
+    items := sys.list.append(items, { label: "sys.crypto.pbkdf2",          kind: 3, detail: "crypto", documentation: "PBKDF2 key derivation (password, salt, iters, len)" })
+    items := sys.list.append(items, { label: "sys.crypto.aes_gcm_encrypt", kind: 3, detail: "crypto", documentation: "AES-256-GCM encrypt(key, nonce, plaintext) → ciphertext" })
+    items := sys.list.append(items, { label: "sys.crypto.aes_gcm_decrypt", kind: 3, detail: "crypto", documentation: "AES-256-GCM decrypt(key, nonce, ciphertext) → plaintext" })
+    items := sys.list.append(items, { label: "sys.crypto.random_bytes",    kind: 3, detail: "crypto", documentation: "Generate N cryptographically random bytes" })
+    items := sys.list.append(items, { label: "sys.crypto.ed25519_generate", kind: 3, detail: "crypto", documentation: "Generate Ed25519 keypair → { public, secret }" })
+    items := sys.list.append(items, { label: "sys.crypto.ed25519_sign",    kind: 3, detail: "crypto", documentation: "Sign data with Ed25519 secret key → signature" })
+    items := sys.list.append(items, { label: "sys.crypto.ed25519_verify",  kind: 3, detail: "crypto", documentation: "Verify Ed25519 signature → bool" })
+
+    // ── sys.chain (blockchain) ──
+    items := sys.list.append(items, { label: "sys.chain.height",      kind: 3, detail: "chain", documentation: "Get current blockchain height" })
+    items := sys.list.append(items, { label: "sys.chain.get_balance", kind: 3, detail: "chain", documentation: "Get balance for an address" })
+    items := sys.list.append(items, { label: "sys.chain.submit_tx",   kind: 3, detail: "chain", documentation: "Submit a signed transaction" })
+    items := sys.list.append(items, { label: "sys.chain.verify_tx",   kind: 3, detail: "chain", documentation: "Verify transaction validity → bool" })
+
+    // ── sys.z3 ──
+    items := sys.list.append(items, { label: "sys.z3.verify", kind: 3, detail: "z3", documentation: "Verify a logical predicate via Z3 solver" })
+
+    // ── sys.ai ──
+    items := sys.list.append(items, { label: "sys.ai.ask", kind: 3, detail: "ai", documentation: "Send a prompt to the AI engine, returns response string" })
+    items := sys.list.append(items, { label: "ai.ask",     kind: 3, detail: "ai", documentation: "Alias for sys.ai.ask" })
+
+    // ── math ──
+    items := sys.list.append(items, { label: "math.pow",        kind: 3, detail: "math", documentation: "math.pow(base, exp) → base^exp" })
+    items := sys.list.append(items, { label: "math.pow_mod",    kind: 3, detail: "math", documentation: "math.pow_mod(base, exp, mod) → modular exponentiation" })
+    items := sys.list.append(items, { label: "math.sqrt",       kind: 3, detail: "math", documentation: "math.sqrt(x) → square root" })
+    items := sys.list.append(items, { label: "math.sin",        kind: 3, detail: "math", documentation: "math.sin(radians) → sine" })
+    items := sys.list.append(items, { label: "math.cos",        kind: 3, detail: "math", documentation: "math.cos(radians) → cosine" })
+    items := sys.list.append(items, { label: "math.tan",        kind: 3, detail: "math", documentation: "math.tan(radians) → tangent" })
+    items := sys.list.append(items, { label: "math.asin",       kind: 3, detail: "math", documentation: "math.asin(x) → arcsine in radians" })
+    items := sys.list.append(items, { label: "math.acos",       kind: 3, detail: "math", documentation: "math.acos(x) → arccosine in radians" })
+    items := sys.list.append(items, { label: "math.atan",       kind: 3, detail: "math", documentation: "math.atan(x) → arctangent in radians" })
+    items := sys.list.append(items, { label: "math.atan2",      kind: 3, detail: "math", documentation: "math.atan2(y, x) → angle in radians" })
+    items := sys.list.append(items, { label: "math.sin_scaled", kind: 3, detail: "math", documentation: "Integer-scaled sine for fixed-point math" })
+    items := sys.list.append(items, { label: "math.cos_scaled", kind: 3, detail: "math", documentation: "Integer-scaled cosine for fixed-point math" })
+
+    // ── math.Tensor ──
+    items := sys.list.append(items, { label: "math.Tensor",     kind: 3, detail: "tensor", documentation: "Create a tensor from shape and data list" })
+    items := sys.list.append(items, { label: "math.matmul",     kind: 3, detail: "tensor", documentation: "Matrix multiply two tensors" })
+    items := sys.list.append(items, { label: "math.transpose",  kind: 3, detail: "tensor", documentation: "Transpose a 2D tensor" })
+    items := sys.list.append(items, { label: "math.dot",        kind: 3, detail: "tensor", documentation: "Dot product of two vectors" })
+    items := sys.list.append(items, { label: "math.add",        kind: 3, detail: "tensor", documentation: "Element-wise tensor addition" })
+    items := sys.list.append(items, { label: "math.sub",        kind: 3, detail: "tensor", documentation: "Element-wise tensor subtraction" })
+    items := sys.list.append(items, { label: "math.mul_scalar", kind: 3, detail: "tensor", documentation: "Multiply tensor by scalar" })
+
+    // ── net ──
+    items := sys.list.append(items, { label: "net.http.request",      kind: 3, detail: "net", documentation: "HTTP request: net.http.request(method, url, body, headers)" })
+    items := sys.list.append(items, { label: "net.http.serve",        kind: 3, detail: "net", documentation: "Start HTTP server on port with handler function" })
+    items := sys.list.append(items, { label: "net.socket.bind",       kind: 3, detail: "net", documentation: "Bind a TCP listener socket on host:port" })
+    items := sys.list.append(items, { label: "net.socket.accept",     kind: 3, detail: "net", documentation: "Accept incoming connection on bound socket" })
+    items := sys.list.append(items, { label: "net.socket.connect",    kind: 3, detail: "net", documentation: "Connect TCP to host:port" })
+    items := sys.list.append(items, { label: "net.socket.send",       kind: 3, detail: "net", documentation: "Send data on connected socket" })
+    items := sys.list.append(items, { label: "net.socket.recv",       kind: 3, detail: "net", documentation: "Receive data from socket" })
+    items := sys.list.append(items, { label: "net.socket.close",      kind: 3, detail: "net", documentation: "Close a socket" })
+    items := sys.list.append(items, { label: "net.socket.set_timeout", kind: 3, detail: "net", documentation: "Set read/write timeout on socket (ms)" })
+
+    // ── governance ──
+    items := sys.list.append(items, { label: "governance.trace",        kind: 3, detail: "gov", documentation: "Emit a governance trace record" })
+    items := sys.list.append(items, { label: "governance.mcc_check",    kind: 3, detail: "gov", documentation: "MCC compliance check" })
+    items := sys.list.append(items, { label: "governance.verify_chain", kind: 3, detail: "gov", documentation: "Verify a governance chain" })
+
+    return items
+}
+
+// --- Scope-Aware Symbol Collector ---
+// Walks the AST and collects all user-defined symbols (functions, variables)
+// that are visible at a given line number.
+
+func collect_scope_symbols(node, target_line) {
+    symbols := []
+    if sys.struct.has(node, "kind") == false { return symbols }
+
+    let (kind, _) := sys.struct.get(node, "kind")
+
+    // Collect function definitions
+    if kind == NODE_FUNC_DEF {
+        let (name, _) := sys.struct.get(node, "name")
+        symbols := sys.list.append(symbols, { label: name, kind: 3, detail: "function", documentation: "User function: " + name + "()" })
+    }
+
+    // Collect assignments / let bindings as variables
+    if kind == NODE_ASSIGN {
+        // Only include if the assignment is before or at the cursor line
+        has_range := sys.struct.has(node, "range")
+        if has_range {
+            let (range, _) := sys.struct.get(node, "range")
+            if range.start.line <= target_line {
+                let (name, _) := sys.struct.get(node, "name")
+                symbols := sys.list.append(symbols, { label: name, kind: 6, detail: "variable", documentation: "Variable: " + name })
+            }
+        }
+    }
+
+    // Recurse into children lists
+    lists := ["children", "body", "then_block", "else_block", "args"]
+    let (llen, _) := sys.len(lists)
+    k := 0
+    while k < llen {
+        let (fname, _) := sys.list.get(lists, k)
+        if sys.struct.has(node, fname) {
+            let (lst, _) := sys.struct.get(node, fname)
+            let (len, _) := sys.len(lst)
+            i := 0
+            while i < len {
+                let (child, _) := sys.list.get(lst, i)
+                child_syms := collect_scope_symbols(child, target_line)
+                let (cs_len, _) := sys.len(child_syms)
+                j := 0
+                while j < cs_len {
+                    let (sym, _) := sys.list.get(child_syms, j)
+                    symbols := sys.list.append(symbols, sym)
+                    j := j + 1
+                }
+                i := i + 1
+            }
+        }
+        k := k + 1
+    }
+
+    // Recurse into singular node fields
+    nodes := ["expression", "value", "condition", "left", "right"]
+    let (nlen, _) := sys.len(nodes)
+    m := 0
+    while m < nlen {
+        let (fname, _) := sys.list.get(nodes, m)
+        if sys.struct.has(node, fname) {
+            let (child, _) := sys.struct.get(node, fname)
+            if sys.struct.has(child, "kind") {
+                child_syms := collect_scope_symbols(child, target_line)
+                let (cs_len, _) := sys.len(child_syms)
+                n := 0
+                while n < cs_len {
+                    let (sym, _) := sys.list.get(child_syms, n)
+                    symbols := sys.list.append(symbols, sym)
+                    n := n + 1
+                }
+            }
+        }
+        m := m + 1
+    }
+
+    return symbols
+}
+
+// --- Intrinsic Documentation Lookup ---
+// For hover: look up an intrinsic by name and return its doc string.
+
+func lookup_intrinsic_doc(name) {
+    registry := build_intrinsic_registry()
+    let (rlen, _) := sys.len(registry)
+    i := 0
+    while i < rlen {
+        let (item, _) := sys.list.get(registry, i)
+        if item.label == name {
+            return item.documentation
+        }
+        i := i + 1
+    }
+    return ""
+}
+
+func handle_completion(params, ast) {
+    items := []
+
+    // 1. Keywords (kind: 14 = Keyword)
+    keywords := ["if", "else", "while", "func", "return", "let", "true", "false", "import", "struct", "match", "for", "in", "class", "linear", "and", "or", "not"]
     let (k_len, _) := sys.len(keywords)
     i := 0
     while i < k_len {
         let (k, _) := sys.list.get(keywords, i)
-        item := { label: k, kind: 14 } // Keyword
+        item := { label: k, kind: 14 }
         items := sys.list.append(items, item)
         i := i + 1
     }
 
-    // Add intrinsics
+    // 2. Full intrinsic registry (kind: 3 = Function)
+    intrinsics := build_intrinsic_registry()
     let (i_len, _) := sys.len(intrinsics)
     j := 0
     while j < i_len {
-        let (k, _) := sys.list.get(intrinsics, j)
-        item := { label: k, kind: 3 } // Function
-        items := sys.list.append(items, item)
+        let (intr, _) := sys.list.get(intrinsics, j)
+        items := sys.list.append(items, intr)
         j := j + 1
+    }
+
+    // 3. Scope-aware user symbols (functions + variables from AST)
+    target_line := 0
+    if sys.struct.has(params, "position") {
+        let (pos, _) := sys.struct.get(params, "position")
+        let (line, _) := sys.struct.get(pos, "line")
+        target_line := line
+    }
+    user_symbols := collect_scope_symbols(ast, target_line)
+    let (u_len, _) := sys.len(user_symbols)
+    k := 0
+    while k < u_len {
+        let (sym, _) := sys.list.get(user_symbols, k)
+        items := sys.list.append(items, sym)
+        k := k + 1
     }
 
     return { isIncomplete: false, items: items }
@@ -825,33 +1068,105 @@ func handle_hover(params, ast) {
 
     let (kind, _) := sys.struct.get(node, "kind")
 
-    // If identifier
-    if kind == NODE_EXPR_VAR { // Var access
+    // Variable  access — check if it's an intrinsic or user variable
+    if kind == NODE_EXPR_VAR {
         let (name, _) := sys.struct.get(node, "name")
+
+        // Check intrinsic docs
+        doc := lookup_intrinsic_doc(name)
+        if doc != "" {
+            return {
+                contents: {
+                    kind: "markdown",
+                    value: "**Intrinsic** `" + name + "`\n\n" + doc
+                }
+            }
+        }
+
         return {
             contents: {
                 kind: "markdown",
-                value: "**Variable**: " + name
+                value: "**Variable** `" + name + "`"
             }
         }
     }
 
+    // Function definition — show signature info
     if kind == NODE_FUNC_DEF {
         let (name, _) := sys.struct.get(node, "name")
+        let (args, _) := sys.struct.get(node, "args")
+        let (argc, _) := sys.len(args)
+
         return {
             contents: {
                 kind: "markdown",
-                value: "**Function Definition**: " + name
+                value: "**Function** `" + name + "` — " + int_to_str(argc) + " parameter(s)\n\n```ark\nfunc " + name + "(...) { ... }\n```"
             }
         }
     }
 
+    // Function call — show intrinsic doc or user func reference
     if kind == NODE_EXPR_CALL {
         let (name, _) := sys.struct.get(node, "function")
+        let (args, _) := sys.struct.get(node, "args")
+        let (argc, _) := sys.len(args)
+
+        // Check intrinsic docs
+        doc := lookup_intrinsic_doc(name)
+        if doc != "" {
+            return {
+                contents: {
+                    kind: "markdown",
+                    value: "**Intrinsic** `" + name + "` — " + int_to_str(argc) + " arg(s)\n\n" + doc
+                }
+            }
+        }
+
         return {
             contents: {
                 kind: "markdown",
-                value: "**Function Call**: " + name
+                value: "**Call** `" + name + "(...)` — " + int_to_str(argc) + " arg(s)"
+            }
+        }
+    }
+
+    // Assignment
+    if kind == NODE_ASSIGN {
+        let (name, _) := sys.struct.get(node, "name")
+        return {
+            contents: {
+                kind: "markdown",
+                value: "**Assignment** `" + name + " := ...`"
+            }
+        }
+    }
+
+    // Literals
+    if kind == NODE_EXPR_LITERAL_INT {
+        let (val, _) := sys.struct.get(node, "value")
+        return {
+            contents: {
+                kind: "markdown",
+                value: "**Integer literal** `" + val + "`\n\nType: `Int`"
+            }
+        }
+    }
+
+    if kind == NODE_EXPR_LITERAL_STR {
+        let (val, _) := sys.struct.get(node, "value")
+        return {
+            contents: {
+                kind: "markdown",
+                value: "**String literal**\n\nType: `String`"
+            }
+        }
+    }
+
+    if kind == NODE_EXPR_LITERAL_BOOL {
+        return {
+            contents: {
+                kind: "markdown",
+                value: "**Boolean literal**\n\nType: `Bool`"
             }
         }
     }
@@ -1103,7 +1418,7 @@ func run_server() {
 
             } else if method == "textDocument/completion" {
                 let (params, _) := sys.struct.get(msg, "params")
-                res := handle_completion(params)
+                res := handle_completion(params, current_ast)
                 send_response(id, res)
             } else if method == "textDocument/hover" {
                 let (params, _) := sys.struct.get(msg, "params")

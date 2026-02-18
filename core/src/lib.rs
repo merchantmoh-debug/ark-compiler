@@ -28,12 +28,14 @@ pub mod checker;
 pub mod compiler;
 pub mod consensus;
 pub mod crypto;
+pub mod debugger;
 #[cfg(test)]
 pub mod eval; // Deprecated by VM, enabled for tests
 pub mod ffi;
 pub mod governance;
 pub mod intrinsics;
 pub mod loader;
+pub mod parser;
 // pub mod repl; // Deprecated interpreter REPL
 #[cfg(test)]
 pub mod bench_intrinsics;

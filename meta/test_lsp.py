@@ -135,7 +135,9 @@ func foo() {
         items = res["result"]["items"]
         labels = [item["label"] for item in items]
         assert "if" in labels
-        assert "sys.print" in labels
+        assert "print" in labels
+        assert "sys.crypto.hash" in labels  # Deep intrinsic check
+        assert len(items) > 80  # 18 keywords + 75 intrinsics + scope symbols
 
         # 5. Hover
         # Hover over 'print' at line 1, char 6 inside 'print("Hello")'
@@ -158,7 +160,7 @@ func foo() {
         assert res["id"] == 3
         # Should return markdown for Function Call
         if res["result"]:
-            assert "Function Call" in res["result"]["contents"]["value"]
+            assert ("Intrinsic" in res["result"]["contents"]["value"]) or ("Call" in res["result"]["contents"]["value"])
             assert "print" in res["result"]["contents"]["value"]
         else:
             print("Hover returned null (maybe pos missed?)")

@@ -1,4 +1,5 @@
 use crate::bytecode::{Chunk, OpCode};
+use crate::debugger::DebugAction;
 use crate::intrinsics;
 use crate::runtime::{RuntimeError, Scope, Value};
 use std::sync::Arc;
@@ -112,6 +113,8 @@ pub struct VM<'a> {
     pub security_level: u8,
     pub step_count: u64,
     pub trace: bool,
+    /// Optional debug hook: called before each opcode, receives (ip). Returns DebugAction.
+    pub debug_hook: Option<Box<dyn FnMut(&[Value], &[Scope], usize, &Chunk) -> DebugAction + 'a>>,
 }
 
 impl<'a> VM<'a> {
@@ -133,6 +136,7 @@ impl<'a> VM<'a> {
             security_level,
             step_count: 0,
             trace: false,
+            debug_hook: None,
         })
     }
 
@@ -193,6 +197,18 @@ impl<'a> VM<'a> {
             }
 
             let op = &self.chunk.code[self.ip];
+
+            // Debug hook — fire before execution
+            if self.debug_hook.is_some() {
+                // We need to temporarily take the hook to avoid borrow issues
+                let mut hook = self.debug_hook.take().unwrap();
+                let action = hook(&self.stack, &self.scopes, self.ip, &self.chunk);
+                self.debug_hook = Some(hook);
+                match action {
+                    DebugAction::Quit => return Ok(Value::Unit),
+                    DebugAction::Continue => {}
+                }
+            }
 
             if self.trace {
                 println!("IP: {:03} | Op: {:?}", self.ip, op);
