@@ -51,6 +51,9 @@ pub enum SocketResource {
 static AI_CLIENT: OnceLock<Client> = OnceLock::new();
 
 #[cfg(not(target_arch = "wasm32"))]
+static AI_CACHE: OnceLock<Mutex<HashMap<String, String>>> = OnceLock::new();
+
+#[cfg(not(target_arch = "wasm32"))]
 static SOCKET_ID_COUNTER: AtomicI64 = AtomicI64::new(1);
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -678,7 +681,7 @@ impl IntrinsicRegistry {
     }
 }
 
-fn check_path_security(path: &str) -> Result<(), RuntimeError> {
+fn check_path_security(path: &str, is_write: bool) -> Result<(), RuntimeError> {
     #[cfg(target_arch = "wasm32")]
     return Ok(());
 
@@ -705,7 +708,7 @@ fn check_path_security(path: &str) -> Result<(), RuntimeError> {
         // If neither exists, we can't write anyway (fs::write doesn't mkdir -p).
 
         let path_to_check = if abs_path.exists() {
-            abs_path
+            abs_path.clone()
         } else {
             match abs_path.parent() {
                 Some(p) => p.to_path_buf(),
@@ -723,6 +726,29 @@ fn check_path_security(path: &str) -> Result<(), RuntimeError> {
                 path
             );
             return Err(RuntimeError::NotExecutable);
+        }
+
+        // Sovereign Security: Protected Paths (Write Only)
+        if is_write {
+            // Relativize path from CWD to check against protected list
+            if let Ok(rel_path) = canonical_path.strip_prefix(&cwd) {
+                let rel_str = rel_path.to_string_lossy();
+                let protected_prefixes = ["core", "meta", "src", "web", ".git", "target"];
+                let protected_files = ["Cargo.toml", "Cargo.lock", "Dockerfile", "README.md", "LICENSE"];
+
+                for prefix in protected_prefixes {
+                    if rel_str.starts_with(prefix) {
+                        println!("[Ark:FS] Security Violation: Write to protected directory '{}' denied.", prefix);
+                        return Err(RuntimeError::NotExecutable);
+                    }
+                }
+                for file in protected_files {
+                    if rel_str == file {
+                        println!("[Ark:FS] Security Violation: Write to protected file '{}' denied.", file);
+                        return Err(RuntimeError::NotExecutable);
+                    }
+                }
+            }
         }
 
         Ok(())
@@ -759,6 +785,15 @@ pub fn intrinsic_ask_ai(args: Vec<Value>) -> Result<Value, RuntimeError> {
         })?;
 
         let url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent".to_string();
+
+        // Optimization: Check Cache first
+        let cache = AI_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+        if let Ok(guard) = cache.lock() {
+            if let Some(cached_response) = guard.get(prompt) {
+                println!("[Ark:AI] Cache Hit. Returning stored response.");
+                return Ok(Value::String(cached_response.clone()));
+            }
+        }
 
         // Optimization: Reuse Client (Connection Pool)
         let client = AI_CLIENT.get_or_init(|| {
@@ -804,6 +839,13 @@ pub fn intrinsic_ask_ai(args: Vec<Value>) -> Result<Value, RuntimeError> {
                             if let Some(text) =
                                 json_resp["candidates"][0]["content"]["parts"][0]["text"].as_str()
                             {
+                                // Store in Cache
+                                if let Ok(mut guard) = cache.lock() {
+                                    if guard.len() > 1000 {
+                                        guard.clear(); // Simple eviction
+                                    }
+                                    guard.insert(prompt.clone(), text.to_string());
+                                }
                                 return Ok(Value::String(text.to_string()));
                             }
                         } else if resp.status().as_u16() == 429 {
@@ -886,6 +928,29 @@ pub fn intrinsic_exec(args: Vec<Value>) -> Result<Value, RuntimeError> {
 
     #[cfg(not(target_arch = "wasm32"))]
     {
+        // Sovereign Security: Command Whitelist
+        // Unless ARK_UNSAFE_EXEC=true is strictly set, we block arbitrary execution.
+        let allow_unsafe = std::env::var("ARK_UNSAFE_EXEC").unwrap_or_else(|_| "false".to_string()) == "true";
+
+        if !allow_unsafe {
+            // Allowed binaries (safe-ish subset)
+            let whitelist = [
+                "ls", "grep", "cat", "echo", "date", "whoami", "clear",
+                "python3", "python", "cargo", "rustc", "node", "git"
+            ];
+
+            // Check strictly against whitelist (exact match on binary name)
+            // If program is a path (e.g. /bin/ls), extract file_name.
+            let prog_path = std::path::Path::new(&program);
+            let prog_name = prog_path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+
+            if !whitelist.contains(&prog_name) {
+                println!("[Ark:Exec] Security Violation: Command '{}' is not in the whitelist.", program);
+                println!("[Ark:Exec] To bypass, set ARK_UNSAFE_EXEC=true (NOT RECOMMENDED).");
+                return Err(RuntimeError::NotExecutable);
+            }
+        }
+
         println!("[Ark:Exec] {} {:?}", program, args_list);
 
         let mut cmd = Command::new(&program);
@@ -921,7 +986,7 @@ pub fn intrinsic_fs_write(args: Vec<Value>) -> Result<Value, RuntimeError> {
         }
     };
 
-    check_path_security(path_str)?;
+    check_path_security(path_str, true)?;
 
     #[cfg(target_arch = "wasm32")]
     {
@@ -1257,7 +1322,7 @@ pub fn intrinsic_fs_read(args: Vec<Value>) -> Result<Value, RuntimeError> {
         }
     };
 
-    check_path_security(path_str)?;
+    check_path_security(path_str, false)?;
 
     #[cfg(target_arch = "wasm32")]
     {
@@ -2323,7 +2388,7 @@ pub fn intrinsic_io_read_bytes(args: Vec<Value>) -> Result<Value, RuntimeError> 
         }
     };
 
-    check_path_security(path_str)?;
+    check_path_security(path_str, false)?;
 
     #[cfg(target_arch = "wasm32")]
     {
@@ -2458,7 +2523,7 @@ pub fn intrinsic_fs_write_buffer(args: Vec<Value>) -> Result<Value, RuntimeError
         }
     };
 
-    check_path_security(path_str)?;
+    check_path_security(path_str, true)?;
 
     match &args[1] {
         Value::Buffer(buf) => {
@@ -2505,7 +2570,7 @@ pub fn intrinsic_fs_read_buffer(args: Vec<Value>) -> Result<Value, RuntimeError>
         }
     };
 
-    check_path_security(path_str)?;
+    check_path_security(path_str, false)?;
 
     #[cfg(target_arch = "wasm32")]
     {
