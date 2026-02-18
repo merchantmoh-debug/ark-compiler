@@ -424,7 +424,7 @@ sys.json.stringify(value)   // Convert to JSON string
 sys.exec("ls")              // Execute shell command (requires ALLOW_DANGEROUS_LOCAL_EXECUTION)
 ```
 
-> **Full list of all 106 intrinsics:** [API_REFERENCE.md](API_REFERENCE.md)
+> **Full list of all 109 intrinsics:** [API_REFERENCE.md](API_REFERENCE.md)
 
 ---
 
@@ -784,7 +784,7 @@ Ark uses environment variables for security controls. **By default, the runtime 
 | `ARK_MAX_STEPS` | `1000000` | Max VM instructions |
 | `ARK_CAPABILITIES` | (none) | Comma-separated: `net`, `fs_read`, `fs_write`, `*` |
 | `ALLOW_DANGEROUS_LOCAL_EXECUTION` | `false` | Enable `sys.exec()` |
-| `ARK_API_KEY` | (none) | API key for `intrinsic_ask_ai` |
+| `ARK_API_KEY` | (none) | API key for `sys.ai.ask` |
 | `ARK_LLM_ENDPOINT` | (none) | Custom LLM endpoint (e.g., Ollama) |
 | `ARK_RPC_URL` | (none) | Ethereum JSON-RPC URL for chain intrinsics |
 

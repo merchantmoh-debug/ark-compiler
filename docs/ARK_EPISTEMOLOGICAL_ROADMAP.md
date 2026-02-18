@@ -16,7 +16,7 @@
 *   **The Problem:** Currently, Ark relies on Google/OpenAI API keys. This is a dependency on the "Old World."
 *   **The Solution:** Make Ark **Ollama-Native**.
 *   **Implementation:**
-    1.  Update `intrinsic_ask_ai` in `meta/ark.py`.
+    1.  Update `sys.ai.ask` handler in `meta/ark.py`.
     2.  Check for `OLLAMA_HOST` (localhost:11434).
     3.  **Default Action:** If Ollama is detected, use it. No keys required.
     4.  **Fallback:** If not, request API keys.

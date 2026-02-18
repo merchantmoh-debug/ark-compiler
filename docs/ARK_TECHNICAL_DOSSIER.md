@@ -56,7 +56,7 @@ The **Ark Virtual Machine (AVM)** executes the MAST (Merkle-ized Abstract Syntax
 *   **Benefit:** Memory safety of Rust, without the borrow checker complexity for the end-user.
 
 ### 2.2 Neuro-Symbolic Opcodes (`intrinsics.rs`)
-*   **Instruction:** `INTRINSIC_ASK_AI`
+*   **Instruction:** `SYS_AI_ASK`
 *   **Signature:** `(Target: String, Context: String) -> Insight: String`
 *   **Behavior:** The VM halts, serializes the context, queries the `ARK_API_KEY` provider (Swarm/Ollama), and resumes execution with the generic result.
 *   **Determinism:** In `Run` mode, the result is cached/hashed. In `Swarm` mode, it is creative.
@@ -83,7 +83,7 @@ The **Ark Virtual Machine (AVM)** executes the MAST (Merkle-ized Abstract Syntax
 ### 3.3 AI (The Neuro-Bridge)
 | API | Description | Cost (Gas) |
 | :--- | :--- | :--- |
-| `intrinsic_ask_ai(prompt)` | Query the Hive Mind. | 5000 + Tokens |
+| `sys.ai.ask(prompt)` | Query the AI backend. | 5000 + Tokens |
 
 ---
 

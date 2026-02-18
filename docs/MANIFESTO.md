@@ -190,7 +190,7 @@ A GPT can write code, but it cannot run it. It cannot test it. It cannot review 
 *   **The Bottleneck:** The human is still in the loop for every step. AI did not eliminate the Engineer; it merely gave the Engineer a faster typewriter.
 
 ### 2. The Ark Solution: The Agent Swarm
-Ark is the first programming language that ships with **built-in agents** — not as an afterthought, but as a core compiler feature.
+Ark ships with **built-in agents** — not as an afterthought, but as a core compiler feature.
 *   **The Orchestrator:** A task enters the system. A `RouterAgent` classifies it. A `CoderAgent` writes the code. A `ReviewerAgent` audits the code for bugs and security holes. The result is returned — no human in the loop.
 *   **The Swarm:** Multiple agents coordinate via strategies: **broadcast** (ask everyone), **consensus** (let them vote), **pipeline** (chain them sequentially).
 *   **The Memory:** Agents remember. Encrypted, namespaced, searchable memory — with vector similarity recall for context retrieval.
@@ -210,7 +210,7 @@ We solved the Control Problem in Book IV. Now we apply it to Agents:
 
 ### 5. The "OMG" Conclusion
 **Ark programs can write, review, and fix themselves.**
-The `sys.ask_ai` intrinsic is not just a wrapper around ChatGPT — it is the gateway to a self-improving codebase. A program that detects a bug, spawns a `CoderAgent` to fix it, routes the patch through a `ReviewerAgent`, and deploys the fix — all within the sandbox — is not science fiction. It is `python -m src.agent`.
+The `sys.ai.ask` intrinsic is not just a wrapper around ChatGPT — it is the gateway to a self-improving codebase. A program that detects a bug, spawns a `CoderAgent` to fix it, routes the patch through a `ReviewerAgent`, and deploys the fix — all within the sandbox — is not science fiction. It is `python -m src.agent`.
 
 ---
 
