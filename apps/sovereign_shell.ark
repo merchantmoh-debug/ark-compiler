@@ -120,25 +120,8 @@ while running {
                 // Remove "? "
                 prompt := string.slice(input, 2, len(input))
                 print("🤖 Thinking...")
-                // Use intrinsic_ask_ai if available
-                // intrinsics dict has "intrinsic_ask_ai": sys_ask_ai
-                // But is it exposed as global?
-                // sys.ask_ai? No, intrinsic_ask_ai in dict.
-                // Let's try calling it. If fails, use mock print.
-                // Actually `meta/ark_intrinsics.py` maps "intrinsic_ask_ai" to sys_ask_ai.
-                // I need to check if `intrinsic_ask_ai` is in global scope.
-                // Usually intrinsics starting with `sys.` are under `sys` object.
-                // Others might be global.
-                // But "intrinsic_ask_ai" name suggests internal.
-                // "sys.ask_ai" is not in INTRINSICS dict keys?
-                // "intrinsic_ask_ai": sys_ask_ai is there.
-                // I will try `intrinsic_ask_ai(prompt)`.
-
-                // Safety wrapper
-                res := "AI not available"
-                // res := intrinsic_ask_ai(prompt) // Might crash if not defined
-                // I'll skip AI for now to be safe or use sys.log
-                print("🤖 (AI Integration Pending)")
+                res := sys.ai.ask(prompt)
+                print("🤖 " + res)
 
             } else {
                 // Eval

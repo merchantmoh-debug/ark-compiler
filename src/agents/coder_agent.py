@@ -16,15 +16,39 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 class CoderAgent(BaseAgent):
     """
     Coder Agent responsible for writing, modifying, and testing code.
-    Has direct access to the filesystem and shell.
+    Has direct access to the filesystem, shell, and the Ark compiler.
     """
     
     def __init__(self, name: str = "Coder", **kwargs):
         system_prompt = (
-            "You are the Coder Agent. Your job is to implement features, fix bugs, and write code.\n"
-            "You have access to the filesystem and shell.\n"
-            "Reference the Ark language syntax and best practices.\n"
-            "Output format: JSON with keys 'files_changed' (list), 'tests_added' (list), 'summary' (str)."
+            "You are the Ark Coder Agent — a specialist in the Ark Sovereign Language.\n"
+            "You write, modify, test, and compile Ark code (.ark files).\n\n"
+            "ARK LANGUAGE QUICK REFERENCE:\n"
+            "  Variables:     x := 42          (walrus operator, no 'let')\n"
+            "  Functions:     func add(a, b) { return a + b }\n"
+            "  Classes:       class Foo { func bar() { return this.x } }\n"
+            "  Loops:         while cond { ... }  /  for item in list { ... }\n"
+            "  Conditionals:  if x > 0 { ... } else { ... }\n"
+            "  Imports:       import lib.std.string  /  sys.vm.source(\"path.ark\")\n"
+            "  Strings:       \"hello\" + \" world\"  (concatenation with +)\n"
+            "  Lists:         items := [1, 2, 3]  /  sys.list.append(items, 4)\n"
+            "  Print:         print(\"Hello Ark\")\n"
+            "  Comments:      // single line\n\n"
+            "KEY INTRINSICS:\n"
+            "  sys.ai.ask(prompt)         — Call AI from Ark code\n"
+            "  sys.fs.read(path)          — Read file contents\n"
+            "  sys.fs.write(path, data)   — Write file\n"
+            "  sys.exec(cmd)              — Execute shell command\n"
+            "  sys.json.parse(str)        — Parse JSON\n"
+            "  sys.json.stringify(val)    — Serialize to JSON\n"
+            "  sys.net.http.request(url)  — HTTP request\n"
+            "  sys.crypto.hash(data)      — Cryptographic hash\n"
+            "  sys.vm.eval(code)          — Eval Ark code at runtime\n"
+            "  sys.vm.source(path)        — Load and run another .ark file\n\n"
+            "STANDARD LIBRARY:\n"
+            "  import lib.std.string      — String utilities (trim, split, etc.)\n"
+            "  sys.vm.source(\"lib/std/ai.ark\") — AI Agent/Swarm classes\n\n"
+            "OUTPUT: JSON with keys 'files_changed' (list), 'tests_added' (list), 'summary' (str)."
         )
         super().__init__(name=name, system_prompt=system_prompt, **kwargs)
 
@@ -34,6 +58,8 @@ class CoderAgent(BaseAgent):
         self.add_tool(self.run_command)
         self.add_tool(self.search_code)
         self.add_tool(self.list_files)
+        self.add_tool(self.execute_ark)
+        self.add_tool(self.compile_check)
 
     def _get_path(self, filepath: str) -> Path:
         """Resolve path and ensure it's within project root."""
@@ -131,6 +157,67 @@ class CoderAgent(BaseAgent):
             return f"Exit Code: {result.returncode}\n{result.stdout}\n{result.stderr}"
         except Exception as e:
             return f"Error searching code: {e}"
+
+    def execute_ark(self, filepath: str) -> str:
+        """Execute an Ark (.ark) file using the Ark interpreter."""
+        try:
+            path = self._get_path(filepath)
+            if not path.exists():
+                return f"Error: File {filepath} does not exist."
+            if not str(path).endswith(".ark"):
+                return f"Error: {filepath} is not an .ark file."
+
+            # Try Rust binary first, fall back to Python interpreter
+            ark_binary = PROJECT_ROOT / "target" / "release" / "ark_loader"
+            if not ark_binary.exists():
+                ark_binary = PROJECT_ROOT / "target" / "debug" / "ark_loader"
+
+            if ark_binary.exists():
+                # Use compiled Rust VM
+                result = subprocess.run(
+                    [str(ark_binary), str(path)],
+                    capture_output=True, text=True,
+                    cwd=PROJECT_ROOT, timeout=30
+                )
+            else:
+                # Fall back to Python interpreter
+                result = subprocess.run(
+                    [sys.executable, "meta/ark.py", str(path)],
+                    capture_output=True, text=True,
+                    cwd=PROJECT_ROOT, timeout=30
+                )
+
+            output = f"Exit Code: {result.returncode}\nStdout: {result.stdout}"
+            if result.stderr:
+                output += f"\nStderr: {result.stderr}"
+            return output
+        except subprocess.TimeoutExpired:
+            return "Error: Ark execution timed out (30s limit)."
+        except Exception as e:
+            return f"Error executing Ark file: {e}"
+
+    def compile_check(self, filepath: str) -> str:
+        """Check an Ark file for syntax and type errors without running it."""
+        try:
+            path = self._get_path(filepath)
+            if not path.exists():
+                return f"Error: File {filepath} does not exist."
+            if not str(path).endswith(".ark"):
+                return f"Error: {filepath} is not an .ark file."
+
+            # Use Python parser for syntax checking
+            result = subprocess.run(
+                [sys.executable, "-c",
+                 f"import meta.ark_parser as p; p.parse(open('{path}').read()); print('OK: No syntax errors.')"],
+                capture_output=True, text=True,
+                cwd=PROJECT_ROOT, timeout=10
+            )
+            output = result.stdout.strip() if result.returncode == 0 else f"Syntax Error:\n{result.stderr}"
+            return output
+        except subprocess.TimeoutExpired:
+            return "Error: Compile check timed out."
+        except Exception as e:
+            return f"Error checking Ark file: {e}"
 
     async def run(self, task: str) -> Dict[str, Any]:
         """

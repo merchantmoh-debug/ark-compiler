@@ -884,12 +884,69 @@ def extract_code(args: List[ArkValue]):
     return ArkValue(ark_blocks, "List")
 
 def sys_ask_ai(args: List[ArkValue]):
-    if len(args) != 1: raise Exception("sys.ask_ai expects prompt")
+    """sys.ai.ask(prompt) → String. Calls Gemini API, Ollama, or returns graceful fallback."""
+    if len(args) != 1:
+        raise Exception("sys.ai.ask expects 1 argument (prompt: String)")
     try:
         prompt = str(args[0].val)
     except Exception as e:
         raise e
-    return ArkValue(f"Ark AI: I received '{prompt}'", "String")
+
+    # --- Resolve API Configuration ---
+    api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("ARK_API_KEY")
+    endpoint = os.environ.get("ARK_LLM_ENDPOINT", "")
+
+    # --- Path 1: Local Ollama (if ARK_LLM_ENDPOINT is set) ---
+    if endpoint:
+        try:
+            import urllib.request
+            payload = json.dumps({
+                "model": os.environ.get("ARK_LLM_MODEL", "mistral"),
+                "messages": [{"role": "user", "content": prompt}],
+                "stream": False
+            }).encode("utf-8")
+            req = urllib.request.Request(
+                endpoint,
+                data=payload,
+                headers={"Content-Type": "application/json"},
+                method="POST"
+            )
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                text = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+                if not text:
+                    text = data.get("message", {}).get("content", str(data))
+                return ArkValue(text, "String")
+        except Exception as e:
+            print(f"[Ark:AI] Local LLM error: {e}", file=sys.stderr)
+            return ArkValue(f"[Ark:AI] Local LLM failed: {e}", "String")
+
+    # --- Path 2: Gemini API (if GOOGLE_API_KEY is set) ---
+    if api_key:
+        try:
+            url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+            payload = json.dumps({
+                "contents": [{"parts": [{"text": prompt}]}]
+            }).encode("utf-8")
+            req = urllib.request.Request(
+                f"{url}?key={api_key}",
+                data=payload,
+                headers={"Content-Type": "application/json"},
+                method="POST"
+            )
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                text = data["candidates"][0]["content"]["parts"][0]["text"]
+                return ArkValue(text, "String")
+        except Exception as e:
+            print(f"[Ark:AI] Gemini API error: {e}", file=sys.stderr)
+            return ArkValue(f"[Ark:AI] Gemini API failed: {e}", "String")
+
+    # --- Path 3: Graceful Fallback (no API key, no endpoint) ---
+    return ArkValue(
+        "[Ark:AI] No API key configured. Set GOOGLE_API_KEY or ARK_LLM_ENDPOINT to enable AI.",
+        "String"
+    )
 
 
 # ─── Networking ───────────────────────────────────────────────────────────────
@@ -1353,6 +1410,8 @@ INTRINSICS = {
     "sys.json.stringify": sys_json_stringify,
     "sys.log": sys_log,
     "intrinsic_ask_ai": sys_ask_ai,
+    "sys.ai.ask": sys_ask_ai,
+    "ai.ask": sys_ask_ai,
     "sys.io.read_bytes": sys_io_read_bytes,
     "sys.io.read_line": sys_io_read_line,
     "sys.io.write": sys_io_write,
