@@ -157,11 +157,7 @@ impl LocalScope {
 
     /// Total number of extra locals (beyond parameters).
     fn extra_local_count(&self, param_count: u32) -> u32 {
-        if self.next_local > param_count {
-            self.next_local - param_count
-        } else {
-            0
-        }
+        self.next_local.saturating_sub(param_count)
     }
 }
 
@@ -228,6 +224,7 @@ pub struct WasmCodegen {
     /// Global function name → function index
     func_index_map: HashMap<String, u32>,
     /// Starting offset of the heap region (after string data)
+    #[allow(dead_code)]
     heap_start: i32,
     /// Per-function attributes (name → Vec<"export", "golem::handler", etc.>)
     func_attributes: HashMap<String, Vec<String>>,
