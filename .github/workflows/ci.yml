@@ -281,7 +281,8 @@ jobs:
           cargo install cargo-audit
 
       - name: Audit Rust Dependencies
-        run: cargo audit
+        # RUSTSEC-2024-0436: paste crate is unmaintained but stable (transitive via wasmtime)
+        run: cargo audit --ignore RUSTSEC-2024-0436
 
       - name: Audit Python Dependencies
         run: pip-audit
