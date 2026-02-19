@@ -212,6 +212,7 @@ impl IntrinsicRegistry {
             "sys.html_escape" | "intrinsic_html_escape" => Some(intrinsic_html_escape),
             "sys.z3.verify" | "intrinsic_z3_verify" => Some(intrinsic_z3_verify),
             "sys.vm.source" | "intrinsic_vm_source" => Some(intrinsic_vm_source),
+            "sys.info" | "intrinsic_sys_info" => Some(intrinsic_sys_info),
             "math.Tensor" | "intrinsic_math_tensor" => Some(intrinsic_math_tensor),
             "math.matmul" | "intrinsic_math_matmul" => Some(intrinsic_math_matmul),
             "math.transpose" | "intrinsic_math_transpose" => Some(intrinsic_math_transpose),
@@ -668,6 +669,10 @@ impl IntrinsicRegistry {
         scope.set(
             "sys.vm.source".to_string(),
             Value::NativeFunction(intrinsic_vm_source),
+        );
+        scope.set(
+            "sys.info".to_string(),
+            Value::NativeFunction(intrinsic_sys_info),
         );
         scope.set(
             "math.Tensor".to_string(),
@@ -3658,6 +3663,32 @@ fn intrinsic_vm_source(args: Vec<Value>) -> Result<Value, RuntimeError> {
         Ok(contents) => Ok(Value::String(contents)),
         Err(e) => Err(RuntimeError::ResourceError(format!("Source Error: {}", e))),
     }
+}
+
+/// sys.info() → Struct
+/// Returns system information (OS, Arch, Version).
+fn intrinsic_sys_info(args: Vec<Value>) -> Result<Value, RuntimeError> {
+    if !args.is_empty() {
+        return Err(RuntimeError::InvalidOperation(
+            "sys.info expects no arguments".into(),
+        ));
+    }
+    let mut info = HashMap::new();
+    info.insert(
+        "os".to_string(),
+        Value::String(std::env::consts::OS.to_string()),
+    );
+    info.insert(
+        "arch".to_string(),
+        Value::String(std::env::consts::ARCH.to_string()),
+    );
+    info.insert(
+        "version".to_string(),
+        Value::String("v112.0 (Prime)".to_string()),
+    );
+    info.insert("status".to_string(), Value::String("Sovereign".to_string()));
+
+    Ok(Value::Struct(info))
 }
 
 // --- Tensor Math Helpers ---
