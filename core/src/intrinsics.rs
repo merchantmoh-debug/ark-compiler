@@ -979,9 +979,7 @@ pub fn intrinsic_exec(args: Vec<Value>) -> Result<Value, RuntimeError> {
         if !allow_unsafe {
             // Allowed binaries (safe-ish subset)
             // HARDENED: Removed python, node, cargo, rustc, git to prevent arbitrary code execution
-            let whitelist = [
-                "ls", "grep", "cat", "echo", "date", "whoami", "clear",
-            ];
+            let whitelist = ["ls", "grep", "cat", "echo", "date", "whoami", "clear"];
 
             // Check strictly against whitelist (exact match on binary name)
             // If program is a path (e.g. /bin/ls), extract file_name.
