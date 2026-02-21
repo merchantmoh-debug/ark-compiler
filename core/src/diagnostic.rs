@@ -570,7 +570,7 @@ pub enum Comparison {
 
 impl Comparison {
     /// Parse a comparison operator from a string token.
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse_op(s: &str) -> Option<Self> {
         match s {
             "gt" | ">" => Some(Comparison::GreaterThan),
             "lt" | "<" => Some(Comparison::LessThan),
@@ -652,7 +652,7 @@ impl UserDefinedGate {
             match (kv.next(), kv.next()) {
                 (Some("name"), Some(v)) => name = Some(v.to_string()),
                 (Some("key"), Some(v)) => key = Some(v.to_string()),
-                (Some("op"), Some(v)) => op = Comparison::from_str(v),
+                (Some("op"), Some(v)) => op = Comparison::parse_op(v),
                 (Some("val"), Some(v)) => val = v.parse::<f64>().ok(),
                 (Some("sev"), Some("warning")) => sev = Severity::Warning,
                 (Some("sev"), Some("error")) => sev = Severity::Error,
@@ -761,9 +761,7 @@ impl HistoryEntry {
             let pattern = format!("\"{}\":", key);
             let start = line.find(&pattern)? + pattern.len();
             let rest = &line[start..];
-            let end = rest
-                .find(|c: char| c == ',' || c == '}')
-                .unwrap_or(rest.len());
+            let end = rest.find([',', '}']).unwrap_or(rest.len());
             Some(rest[..end].trim().trim_matches('"'))
         };
 
@@ -2319,11 +2317,11 @@ mod tests {
 
     #[test]
     fn test_comparison_from_str() {
-        assert_eq!(Comparison::from_str("gt"), Some(Comparison::GreaterThan));
-        assert_eq!(Comparison::from_str(">"), Some(Comparison::GreaterThan));
-        assert_eq!(Comparison::from_str("lt"), Some(Comparison::LessThan));
-        assert_eq!(Comparison::from_str("eq"), Some(Comparison::Equal));
-        assert_eq!(Comparison::from_str("invalid"), None);
+        assert_eq!(Comparison::parse_op("gt"), Some(Comparison::GreaterThan));
+        assert_eq!(Comparison::parse_op(">"), Some(Comparison::GreaterThan));
+        assert_eq!(Comparison::parse_op("lt"), Some(Comparison::LessThan));
+        assert_eq!(Comparison::parse_op("eq"), Some(Comparison::Equal));
+        assert_eq!(Comparison::parse_op("invalid"), None);
     }
 
     #[test]
