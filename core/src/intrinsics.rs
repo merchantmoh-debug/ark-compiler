@@ -430,10 +430,6 @@ impl IntrinsicRegistry {
             Value::NativeFunction(intrinsic_time_now),
         );
         scope.set(
-            "intrinsic_time_now".to_string(),
-            Value::NativeFunction(intrinsic_time_now),
-        );
-        scope.set(
             "intrinsic_math_pow".to_string(),
             Value::NativeFunction(intrinsic_math_pow),
         );
@@ -4809,41 +4805,41 @@ mod tests {
             }
             _ => panic!("Expected String"),
         }
+    }
 
-        // Networking Tests
-        #[test]
-        fn test_socket_bind_close() {
-            // Bind to port 0 (ephemeral)
-            let args = vec![Value::Integer(0)];
-            let res = intrinsic_socket_bind(args).unwrap();
-            let id = match res {
-                Value::Integer(i) => i,
-                _ => panic!("Expected Integer ID"),
-            };
-            assert!(id > 0);
+    // Networking Tests
+    #[test]
+    fn test_socket_bind_close() {
+        // Bind to port 0 (ephemeral)
+        let args = vec![Value::Integer(0)];
+        let res = intrinsic_socket_bind(args).unwrap();
+        let id = match res {
+            Value::Integer(i) => i,
+            _ => panic!("Expected Integer ID"),
+        };
+        assert!(id > 0);
 
-            // Close it
-            let args_close = vec![Value::Integer(id)];
-            let res_close = intrinsic_socket_close(args_close).unwrap();
-            assert_eq!(res_close, Value::Boolean(true));
-        }
+        // Close it
+        let args_close = vec![Value::Integer(id)];
+        let res_close = intrinsic_socket_close(args_close).unwrap();
+        assert_eq!(res_close, Value::Boolean(true));
+    }
 
-        #[test]
-        fn test_close_nonexistent() {
-            let args_close = vec![Value::Integer(999999)];
-            let res_close = intrinsic_socket_close(args_close).unwrap();
-            assert_eq!(res_close, Value::Boolean(false));
-        }
+    #[test]
+    fn test_close_nonexistent() {
+        let args_close = vec![Value::Integer(999999)];
+        let res_close = intrinsic_socket_close(args_close).unwrap();
+        assert_eq!(res_close, Value::Boolean(false));
+    }
 
-        #[test]
-        fn test_http_request_invalid_url() {
-            let args = vec![
-                Value::String("GET".to_string()),
-                Value::String("http://invalid.url.local".to_string()),
-            ];
-            let res = intrinsic_http_request(args);
-            // Should return Error, not panic
-            assert!(res.is_err());
-        }
+    #[test]
+    fn test_http_request_invalid_url() {
+        let args = vec![
+            Value::String("GET".to_string()),
+            Value::String("http://invalid.url.local".to_string()),
+        ];
+        let res = intrinsic_http_request(args);
+        // Should return Error, not panic
+        assert!(res.is_err());
     }
 }

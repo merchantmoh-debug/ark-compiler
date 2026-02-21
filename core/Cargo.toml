@@ -6,10 +6,6 @@ edition = "2021"
 [lib]
 crate-type = ["cdylib", "rlib"]
 
-[[bin]]
-name = "ark"
-path = "src/bin/ark_loader.rs"
-
 [dependencies]
 serde = { version = "1.0", features = ["derive", "rc"] }
 serde_json = "1.0"

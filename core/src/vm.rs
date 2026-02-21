@@ -594,38 +594,6 @@ impl<'a> VM<'a> {
         }
     }
 
-    fn binary_op<F>(&mut self, name: &str, op_fn: F) -> Result<(), ArkError>
-    where
-        F: Fn(Value, Value) -> Result<Value, ArkError>,
-    {
-        let b = self
-            .stack
-            .pop()
-            .ok_or_else(|| ArkError::StackUnderflow(name.to_string()))?;
-        let a = self
-            .stack
-            .pop()
-            .ok_or_else(|| ArkError::StackUnderflow(name.to_string()))?;
-        let res = op_fn(a, b)?;
-        self.push(res)
-    }
-
-    fn binary_op_manual<F>(&mut self, name: &str, op_fn: F) -> Result<(), ArkError>
-    where
-        F: Fn(Value, Value) -> Result<Value, String>,
-    {
-        let b = self
-            .stack
-            .pop()
-            .ok_or_else(|| ArkError::StackUnderflow(name.to_string()))?;
-        let a = self
-            .stack
-            .pop()
-            .ok_or_else(|| ArkError::StackUnderflow(name.to_string()))?;
-        let res = op_fn(a, b).map_err(ArkError::Generic)?;
-        self.push(res)
-    }
-
     #[inline]
     fn op_return(&mut self) -> Result<Option<Value>, ArkError> {
         let result = self.stack.pop().unwrap_or(Value::Unit);
