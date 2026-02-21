@@ -57,7 +57,25 @@ def get_system_stats():
             cpu = min((load[0] / count) * 100, 100.0)
         except:
             cpu = 0.0
-        mem = 0.0 # Cannot get mem easily without psutil standard lib
+
+        # Memory fallback (Linux)
+        mem = 0.0
+        if os.path.exists("/proc/meminfo"):
+            try:
+                with open("/proc/meminfo", "r") as f:
+                    meminfo = {}
+                    for line in f:
+                        parts = line.split()
+                        if len(parts) >= 2:
+                            meminfo[parts[0].rstrip(':')] = int(parts[1])
+
+                    if "MemTotal" in meminfo and "MemAvailable" in meminfo:
+                        total = meminfo["MemTotal"]
+                        avail = meminfo["MemAvailable"]
+                        used = total - avail
+                        mem = (used / total) * 100.0
+            except:
+                pass
 
     # Disk
     total, used, free = shutil.disk_usage("/")

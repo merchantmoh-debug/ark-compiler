@@ -169,6 +169,7 @@ impl IntrinsicRegistry {
                 Some(intrinsic_io_read_file_async)
             }
             "sys.extract_code" | "intrinsic_extract_code" => Some(intrinsic_extract_code),
+            "sys.resource.usage" | "intrinsic_resource_usage" => Some(intrinsic_resource_usage),
             // Networking Intrinsics
             "net.http.request" | "intrinsic_http_request" | "sys.net.http.request" => {
                 Some(intrinsic_http_request)
@@ -429,6 +430,10 @@ impl IntrinsicRegistry {
             Value::NativeFunction(intrinsic_time_now),
         );
         scope.set(
+            "intrinsic_time_now".to_string(),
+            Value::NativeFunction(intrinsic_time_now),
+        );
+        scope.set(
             "intrinsic_math_pow".to_string(),
             Value::NativeFunction(intrinsic_math_pow),
         );
@@ -600,6 +605,14 @@ impl IntrinsicRegistry {
         scope.set(
             "sys.extract_code".to_string(),
             Value::NativeFunction(intrinsic_extract_code),
+        );
+        scope.set(
+            "sys.resource.usage".to_string(),
+            Value::NativeFunction(intrinsic_resource_usage),
+        );
+        scope.set(
+            "intrinsic_resource_usage".to_string(),
+            Value::NativeFunction(intrinsic_resource_usage),
         );
         /*
          */
@@ -2799,6 +2812,47 @@ pub fn intrinsic_extract_code(args: Vec<Value>) -> Result<Value, RuntimeError> {
 
     Ok(Value::List(blocks))
 }
+
+pub fn intrinsic_resource_usage(args: Vec<Value>) -> Result<Value, RuntimeError> {
+    if !args.is_empty() {
+        return Err(RuntimeError::NotExecutable);
+    }
+
+    // Get Memory Usage (RSS)
+    let memory = {
+        #[cfg(target_os = "linux")]
+        {
+            // read /proc/self/statm
+            if let Ok(content) = fs::read_to_string("/proc/self/statm") {
+                let parts: Vec<&str> = content.split_whitespace().collect();
+                if parts.len() >= 2 {
+                    // RSS is the second value (in pages)
+                    if let Ok(pages) = parts[1].parse::<i64>() {
+                        // Assume 4KB pages
+                        pages * 4096
+                    } else {
+                        0
+                    }
+                } else {
+                    0
+                }
+            } else {
+                0
+            }
+        }
+        #[cfg(not(target_os = "linux"))]
+        {
+            0
+        }
+    };
+
+    let mut map = HashMap::new();
+    map.insert("memory".to_string(), Value::Integer(memory));
+    map.insert("cpu".to_string(), Value::Integer(0)); // Placeholder
+
+    Ok(Value::Struct(map))
+}
+
 // ----------------------------------------------------------------------
 // NETWORKING INTRINSICS
 // ----------------------------------------------------------------------
