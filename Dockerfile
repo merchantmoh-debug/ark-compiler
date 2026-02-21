@@ -9,7 +9,7 @@ COPY core/ ./core/
 
 # Build and test from workspace root (uses Cargo.toml workspace)
 RUN cargo test --release -p ark-0-zheng
-RUN cargo build --release --bin ark_loader
+RUN cargo build --release --bin ark
 
 # Stage 2: Python runtime
 FROM python:3.11-slim AS runtime
@@ -34,7 +34,7 @@ COPY apps/ ./apps/
 COPY src/ ./src/
 
 # Copy Rust binary from workspace target dir
-COPY --from=rust-builder /build/target/release/ark_loader /usr/local/bin/ark-core
+COPY --from=rust-builder /build/target/release/ark /usr/local/bin/ark-core
 
 # Security: non-root user
 RUN useradd -m -s /bin/bash ark

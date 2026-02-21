@@ -240,70 +240,124 @@ impl<'a> VM<'a> {
                 }
 
                 OpCode::Add => {
-                    let b = self.stack.pop().ok_or_else(|| ArkError::StackUnderflow("Add".into()))?;
-                    let a = self.stack.pop().ok_or_else(|| ArkError::StackUnderflow("Add".into()))?;
+                    let b = self
+                        .stack
+                        .pop()
+                        .ok_or_else(|| ArkError::StackUnderflow("Add".into()))?;
+                    let a = self
+                        .stack
+                        .pop()
+                        .ok_or_else(|| ArkError::StackUnderflow("Add".into()))?;
                     match (&a, &b) {
-                        (Value::Integer(i1), Value::Integer(i2)) => self.push(Value::Integer(i1 + i2))?,
+                        (Value::Integer(i1), Value::Integer(i2)) => {
+                            self.push(Value::Integer(i1 + i2))?
+                        }
                         _ => self.push(intrinsics::intrinsic_add(vec![a, b])?)?,
                     }
                 }
                 OpCode::Sub => {
-                    let b = self.stack.pop().ok_or_else(|| ArkError::StackUnderflow("Sub".into()))?;
-                    let a = self.stack.pop().ok_or_else(|| ArkError::StackUnderflow("Sub".into()))?;
+                    let b = self
+                        .stack
+                        .pop()
+                        .ok_or_else(|| ArkError::StackUnderflow("Sub".into()))?;
+                    let a = self
+                        .stack
+                        .pop()
+                        .ok_or_else(|| ArkError::StackUnderflow("Sub".into()))?;
                     match (&a, &b) {
-                        (Value::Integer(i1), Value::Integer(i2)) => self.push(Value::Integer(i1 - i2))?,
+                        (Value::Integer(i1), Value::Integer(i2)) => {
+                            self.push(Value::Integer(i1 - i2))?
+                        }
                         _ => self.push(intrinsics::intrinsic_sub(vec![a, b])?)?,
                     }
                 }
                 OpCode::Mul => {
-                    let b = self.stack.pop().ok_or_else(|| ArkError::StackUnderflow("Mul".into()))?;
-                    let a = self.stack.pop().ok_or_else(|| ArkError::StackUnderflow("Mul".into()))?;
+                    let b = self
+                        .stack
+                        .pop()
+                        .ok_or_else(|| ArkError::StackUnderflow("Mul".into()))?;
+                    let a = self
+                        .stack
+                        .pop()
+                        .ok_or_else(|| ArkError::StackUnderflow("Mul".into()))?;
                     match (&a, &b) {
-                        (Value::Integer(i1), Value::Integer(i2)) => self.push(Value::Integer(i1 * i2))?,
+                        (Value::Integer(i1), Value::Integer(i2)) => {
+                            self.push(Value::Integer(i1 * i2))?
+                        }
                         _ => self.push(intrinsics::intrinsic_mul(vec![a, b])?)?,
                     }
                 }
                 OpCode::Div => {
-                    let b = self.stack.pop().ok_or_else(|| ArkError::StackUnderflow("Div".into()))?;
-                    let a = self.stack.pop().ok_or_else(|| ArkError::StackUnderflow("Div".into()))?;
+                    let b = self
+                        .stack
+                        .pop()
+                        .ok_or_else(|| ArkError::StackUnderflow("Div".into()))?;
+                    let a = self
+                        .stack
+                        .pop()
+                        .ok_or_else(|| ArkError::StackUnderflow("Div".into()))?;
                     match (&a, &b) {
                         (Value::Integer(i1), Value::Integer(i2)) => {
                             if *i2 == 0 {
                                 return Err(ArkError::DivisionByZero);
                             }
                             self.push(Value::Integer(i1 / i2))?
-                        },
+                        }
                         _ => self.push(intrinsics::intrinsic_div(vec![a, b])?)?,
                     }
                 }
                 OpCode::Mod => {
-                    let b = self.stack.pop().ok_or_else(|| ArkError::StackUnderflow("Mod".into()))?;
-                    let a = self.stack.pop().ok_or_else(|| ArkError::StackUnderflow("Mod".into()))?;
+                    let b = self
+                        .stack
+                        .pop()
+                        .ok_or_else(|| ArkError::StackUnderflow("Mod".into()))?;
+                    let a = self
+                        .stack
+                        .pop()
+                        .ok_or_else(|| ArkError::StackUnderflow("Mod".into()))?;
                     match (&a, &b) {
                         (Value::Integer(i1), Value::Integer(i2)) => {
                             if *i2 == 0 {
                                 return Err(ArkError::DivisionByZero);
                             }
                             self.push(Value::Integer(i1 % i2))?
-                        },
+                        }
                         _ => self.push(intrinsics::intrinsic_mod(vec![a, b])?)?,
                     }
                 }
 
                 OpCode::Eq => {
-                    let b = self.stack.pop().ok_or_else(|| ArkError::StackUnderflow("Eq".into()))?;
-                    let a = self.stack.pop().ok_or_else(|| ArkError::StackUnderflow("Eq".into()))?;
+                    let b = self
+                        .stack
+                        .pop()
+                        .ok_or_else(|| ArkError::StackUnderflow("Eq".into()))?;
+                    let a = self
+                        .stack
+                        .pop()
+                        .ok_or_else(|| ArkError::StackUnderflow("Eq".into()))?;
                     match (&a, &b) {
-                        (Value::Integer(i1), Value::Integer(i2)) => self.push(Value::Integer(if i1 == i2 { 1 } else { 0 }))?,
-                        (Value::Boolean(b1), Value::Boolean(b2)) => self.push(Value::Integer(if b1 == b2 { 1 } else { 0 }))?,
+                        (Value::Integer(i1), Value::Integer(i2)) => {
+                            self.push(Value::Integer(if i1 == i2 { 1 } else { 0 }))?
+                        }
+                        (Value::Boolean(b1), Value::Boolean(b2)) => {
+                            self.push(Value::Integer(if b1 == b2 { 1 } else { 0 }))?
+                        }
                         _ => self.push(intrinsics::intrinsic_eq(vec![a, b])?)?,
                     }
                 }
                 OpCode::Neq => {
-                    let b = self.stack.pop().ok_or_else(|| ArkError::StackUnderflow("Neq".into()))?;
-                    let a = self.stack.pop().ok_or_else(|| ArkError::StackUnderflow("Neq".into()))?;
+                    let b = self
+                        .stack
+                        .pop()
+                        .ok_or_else(|| ArkError::StackUnderflow("Neq".into()))?;
+                    let a = self
+                        .stack
+                        .pop()
+                        .ok_or_else(|| ArkError::StackUnderflow("Neq".into()))?;
                     match (&a, &b) {
-                        (Value::Integer(i1), Value::Integer(i2)) => self.push(Value::Integer(if i1 != i2 { 1 } else { 0 }))?,
+                        (Value::Integer(i1), Value::Integer(i2)) => {
+                            self.push(Value::Integer(if i1 != i2 { 1 } else { 0 }))?
+                        }
                         _ => {
                             let res = intrinsics::intrinsic_eq(vec![a, b])?;
                             if let Value::Integer(i) = res {
@@ -317,34 +371,66 @@ impl<'a> VM<'a> {
                     }
                 }
                 OpCode::Gt => {
-                    let b = self.stack.pop().ok_or_else(|| ArkError::StackUnderflow("Gt".into()))?;
-                    let a = self.stack.pop().ok_or_else(|| ArkError::StackUnderflow("Gt".into()))?;
+                    let b = self
+                        .stack
+                        .pop()
+                        .ok_or_else(|| ArkError::StackUnderflow("Gt".into()))?;
+                    let a = self
+                        .stack
+                        .pop()
+                        .ok_or_else(|| ArkError::StackUnderflow("Gt".into()))?;
                     match (&a, &b) {
-                        (Value::Integer(i1), Value::Integer(i2)) => self.push(Value::Integer(if i1 > i2 { 1 } else { 0 }))?,
+                        (Value::Integer(i1), Value::Integer(i2)) => {
+                            self.push(Value::Integer(if i1 > i2 { 1 } else { 0 }))?
+                        }
                         _ => self.push(intrinsics::intrinsic_gt(vec![a, b])?)?,
                     }
                 }
                 OpCode::Lt => {
-                    let b = self.stack.pop().ok_or_else(|| ArkError::StackUnderflow("Lt".into()))?;
-                    let a = self.stack.pop().ok_or_else(|| ArkError::StackUnderflow("Lt".into()))?;
+                    let b = self
+                        .stack
+                        .pop()
+                        .ok_or_else(|| ArkError::StackUnderflow("Lt".into()))?;
+                    let a = self
+                        .stack
+                        .pop()
+                        .ok_or_else(|| ArkError::StackUnderflow("Lt".into()))?;
                     match (&a, &b) {
-                        (Value::Integer(i1), Value::Integer(i2)) => self.push(Value::Boolean(i1 < i2))?,
+                        (Value::Integer(i1), Value::Integer(i2)) => {
+                            self.push(Value::Boolean(i1 < i2))?
+                        }
                         _ => self.push(intrinsics::intrinsic_lt(vec![a, b])?)?,
                     }
                 }
                 OpCode::Ge => {
-                    let b = self.stack.pop().ok_or_else(|| ArkError::StackUnderflow("Ge".into()))?;
-                    let a = self.stack.pop().ok_or_else(|| ArkError::StackUnderflow("Ge".into()))?;
+                    let b = self
+                        .stack
+                        .pop()
+                        .ok_or_else(|| ArkError::StackUnderflow("Ge".into()))?;
+                    let a = self
+                        .stack
+                        .pop()
+                        .ok_or_else(|| ArkError::StackUnderflow("Ge".into()))?;
                     match (&a, &b) {
-                        (Value::Integer(i1), Value::Integer(i2)) => self.push(Value::Integer(if i1 >= i2 { 1 } else { 0 }))?,
+                        (Value::Integer(i1), Value::Integer(i2)) => {
+                            self.push(Value::Integer(if i1 >= i2 { 1 } else { 0 }))?
+                        }
                         _ => self.push(intrinsics::intrinsic_ge(vec![a, b])?)?,
                     }
                 }
                 OpCode::Le => {
-                    let b = self.stack.pop().ok_or_else(|| ArkError::StackUnderflow("Le".into()))?;
-                    let a = self.stack.pop().ok_or_else(|| ArkError::StackUnderflow("Le".into()))?;
+                    let b = self
+                        .stack
+                        .pop()
+                        .ok_or_else(|| ArkError::StackUnderflow("Le".into()))?;
+                    let a = self
+                        .stack
+                        .pop()
+                        .ok_or_else(|| ArkError::StackUnderflow("Le".into()))?;
                     match (&a, &b) {
-                        (Value::Integer(i1), Value::Integer(i2)) => self.push(Value::Integer(if i1 <= i2 { 1 } else { 0 }))?,
+                        (Value::Integer(i1), Value::Integer(i2)) => {
+                            self.push(Value::Integer(if i1 <= i2 { 1 } else { 0 }))?
+                        }
                         _ => self.push(intrinsics::intrinsic_le(vec![a, b])?)?,
                     }
                 }
