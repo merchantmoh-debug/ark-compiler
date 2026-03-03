@@ -93,4 +93,5 @@ pub mod wasm_interop;
 pub mod wasm_runner;
 pub mod wasserstein;
 pub mod wit_gen;
+pub mod yggdrasil;
 pub use wasm::*;

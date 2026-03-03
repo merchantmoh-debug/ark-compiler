@@ -1,0 +1,73 @@
+// ==========================================================================
+// Yggdrasil Agent Forest — Standard Library
+// ==========================================================================
+//
+// Entropy-optimal multi-agent evolution system.
+// Each agent tree evolves toward κ_optimal = 1/φ ≈ 0.618,
+// the edge of chaos where aperiodic structure is maximized.
+//
+// Port of Project Yggdrasil v2.0.0 (Remember-Me-AI).
+//
+// Mathematical Foundation:
+//   φ = (1 + √5) / 2 ≈ 1.618  (golden ratio)
+//   κ_optimal = 1/φ ≈ 0.618    (entropy sweet spot)
+//
+// Architecture:
+//   WorldTree  → Base agentic seed
+//   AgentTree  → Extended tree with grow/branch/fruit
+//   Forest     → Multi-agent collective with pollination & root networks
+//
+// Usage:
+//   import std.yggdrasil
+//
+//   let forest = yggdrasil.seed({})
+//   yggdrasil.cycle()
+//   let m = yggdrasil.metrics()
+//   print("Avg κ: " + m.avg_kappa)
+//   let response = yggdrasil.ask("What is the optimal strategy?")
+// ==========================================================================
+
+// --- Forest Lifecycle ---
+
+// Initialize the agent forest with optional configuration.
+// Config fields: seed (Integer) — RNG seed for reproducibility.
+// Returns a struct with tree_count and season.
+func seed(config) {
+    return sys.yggdrasil.seed(config)
+}
+
+// Run one evolution cycle: grow → pollinate → connect roots → harvest → evolve.
+// Returns a struct with season and tree_count.
+func cycle() {
+    return sys.yggdrasil.cycle()
+}
+
+// Harvest: collect the best fruits from all trees.
+// Returns a list of fruit structs sorted by quality × entropy.
+func harvest() {
+    return sys.yggdrasil.harvest()
+}
+
+// Evolve: prune weak trees below golden ratio fitness threshold.
+// Returns a struct with surviving tree_count.
+func evolve() {
+    return sys.yggdrasil.evolve()
+}
+
+// --- Intelligence ---
+
+// Query the forest for collective intelligence.
+// Uses entropy-weighted consensus from all agent trees.
+// Returns a struct with agent, response, confidence, entropy.
+func ask(query) {
+    return sys.yggdrasil.collective_intelligence(query)
+}
+
+// --- Metrics ---
+
+// Get entropy metrics for the forest.
+// Returns: avg_kappa, kappa_variance, avg_entropy,
+//          golden_deviation, network_density, tree_count
+func metrics() {
+    return sys.yggdrasil.metrics()
+}

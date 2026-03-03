@@ -14,6 +14,7 @@
  *   sys.memory.*   → CsnpManager, WassersteinMetric
  *   sys.ois.*      → OisTruthBudget, HaiyueSimulation, VelocityPhysics
  *   sys.agent.*    → SovereignPipeline (Phase 3)
+ *   sys.yggdrasil.* → Forest (Phase 6)
  */
 
 use std::collections::HashMap;
@@ -28,6 +29,7 @@ use crate::runtime::{RuntimeError, Value};
 use crate::signal_gate::SignalGate;
 use crate::veto_circuit::VetoCircuit;
 use crate::wasserstein::WassersteinMetric;
+use crate::yggdrasil::Forest;
 
 // ===========================================================================
 // Global Singletons (stateful modules)
@@ -61,6 +63,12 @@ static PIPELINE: OnceLock<Mutex<SovereignPipeline>> = OnceLock::new();
 
 fn get_pipeline() -> &'static Mutex<SovereignPipeline> {
     PIPELINE.get_or_init(|| Mutex::new(SovereignPipeline::new()))
+}
+
+static FOREST: OnceLock<Mutex<Forest>> = OnceLock::new();
+
+fn get_forest() -> &'static Mutex<Forest> {
+    FOREST.get_or_init(|| Mutex::new(Forest::new(None)))
 }
 
 // ===========================================================================
@@ -672,6 +680,156 @@ pub fn intrinsic_desktop_tier2_stub(args: Vec<Value>) -> Result<Value, RuntimeEr
 }
 
 // ===========================================================================
+// sys.yggdrasil.* — Yggdrasil Agent Forest (Phase 6)
+// ===========================================================================
+
+/// `sys.yggdrasil.seed(config: Struct) -> Struct`
+///
+/// Initialize (or re-initialize) the agent forest.
+/// Config may contain a `seed` field (Integer) for RNG reproducibility.
+pub fn intrinsic_yggdrasil_seed(args: Vec<Value>) -> Result<Value, RuntimeError> {
+    let rng_seed: Option<u64> = if let Some(Value::Struct(map)) = args.first() {
+        map.get("seed").and_then(|v| match v {
+            Value::Integer(i) => Some(*i as u64),
+            _ => None,
+        })
+    } else {
+        None
+    };
+
+    let new_forest = Forest::new(rng_seed);
+    let tree_count = new_forest.trees.len();
+    let season = new_forest.season;
+
+    let mut forest = get_forest()
+        .lock()
+        .map_err(|e| RuntimeError::ResourceError(format!("Forest lock poisoned: {}", e)))?;
+    *forest = new_forest;
+
+    Ok(make_struct(vec![
+        ("tree_count", Value::Integer(tree_count as i64)),
+        ("season", Value::Integer(season as i64)),
+    ]))
+}
+
+/// `sys.yggdrasil.cycle() -> Struct`
+///
+/// Run one evolution cycle: grow → pollinate → connect roots → harvest → evolve.
+pub fn intrinsic_yggdrasil_cycle(args: Vec<Value>) -> Result<Value, RuntimeError> {
+    let _ = args;
+    let mut forest = get_forest()
+        .lock()
+        .map_err(|e| RuntimeError::ResourceError(format!("Forest lock poisoned: {}", e)))?;
+    forest.cycle();
+
+    Ok(make_struct(vec![
+        ("season", Value::Integer(forest.season as i64)),
+        ("tree_count", Value::Integer(forest.trees.len() as i64)),
+    ]))
+}
+
+/// `sys.yggdrasil.harvest() -> List[Struct]`
+///
+/// Returns a list of all fruits from all trees, sorted by quality × entropy.
+pub fn intrinsic_yggdrasil_harvest(args: Vec<Value>) -> Result<Value, RuntimeError> {
+    let _ = args;
+    let mut forest = get_forest()
+        .lock()
+        .map_err(|e| RuntimeError::ResourceError(format!("Forest lock poisoned: {}", e)))?;
+    forest.harvest();
+
+    // Collect all fruits across all trees
+    let mut all: Vec<Value> = Vec::new();
+    for tree in forest.trees.iter() {
+        for fruit in tree.fruits.iter() {
+            all.push(make_struct(vec![
+                ("type", Value::String(fruit.fruit_type.clone())),
+                ("quality", Value::String(format!("{:.6}", fruit.quality))),
+                ("seeds", Value::Integer(fruit.seeds as i64)),
+                ("generation", Value::Integer(fruit.generation as i64)),
+                (
+                    "entropy_score",
+                    Value::String(format!("{:.6}", fruit.entropy_score)),
+                ),
+            ]));
+        }
+    }
+
+    Ok(Value::List(all))
+}
+
+/// `sys.yggdrasil.evolve() -> Struct`
+///
+/// Prune weak trees below golden ratio fitness threshold.
+pub fn intrinsic_yggdrasil_evolve(args: Vec<Value>) -> Result<Value, RuntimeError> {
+    let _ = args;
+    let mut forest = get_forest()
+        .lock()
+        .map_err(|e| RuntimeError::ResourceError(format!("Forest lock poisoned: {}", e)))?;
+    forest.evolve();
+
+    Ok(make_struct(vec![
+        ("tree_count", Value::Integer(forest.trees.len() as i64)),
+        ("climate", Value::String(format!("{:.6}", forest.climate))),
+    ]))
+}
+
+/// `sys.yggdrasil.collective_intelligence(query: String) -> Struct`
+///
+/// Query the forest for entropy-weighted consensus.
+pub fn intrinsic_yggdrasil_ask(args: Vec<Value>) -> Result<Value, RuntimeError> {
+    let query = extract_string(&args, 0, "query")?;
+    let mut forest = get_forest()
+        .lock()
+        .map_err(|e| RuntimeError::ResourceError(format!("Forest lock poisoned: {}", e)))?;
+
+    match forest.collective_intelligence(&query) {
+        Some(resp) => Ok(make_struct(vec![
+            ("agent", Value::String(resp.agent)),
+            ("response", Value::String(format!("{:.6}", resp.response))),
+            (
+                "confidence",
+                Value::String(format!("{:.6}", resp.confidence)),
+            ),
+            ("entropy", Value::String(format!("{:.6}", resp.entropy))),
+        ])),
+        None => Ok(Value::Unit),
+    }
+}
+
+/// `sys.yggdrasil.metrics() -> Struct`
+///
+/// Get entropy metrics for the forest.
+pub fn intrinsic_yggdrasil_metrics(args: Vec<Value>) -> Result<Value, RuntimeError> {
+    let _ = args;
+    let forest = get_forest()
+        .lock()
+        .map_err(|e| RuntimeError::ResourceError(format!("Forest lock poisoned: {}", e)))?;
+    let m = forest.get_entropy_metrics();
+
+    Ok(make_struct(vec![
+        ("avg_kappa", Value::String(format!("{:.6}", m.avg_kappa))),
+        (
+            "kappa_variance",
+            Value::String(format!("{:.6}", m.kappa_variance)),
+        ),
+        (
+            "avg_entropy",
+            Value::String(format!("{:.6}", m.avg_entropy)),
+        ),
+        (
+            "golden_deviation",
+            Value::String(format!("{:.6}", m.golden_deviation)),
+        ),
+        (
+            "network_density",
+            Value::String(format!("{:.6}", m.network_density)),
+        ),
+        ("tree_count", Value::Integer(m.tree_count as i64)),
+    ]))
+}
+
+// ===========================================================================
 // Registry
 // ===========================================================================
 
@@ -725,6 +883,14 @@ pub fn resolve_cognitive(name: &str) -> Option<crate::runtime::NativeFn> {
         | "sys.desktop.recycle_bin"
         | "sys.desktop.panic" => Some(intrinsic_desktop_tier2_stub),
 
+        // Yggdrasil Agent Forest (Phase 6)
+        "sys.yggdrasil.seed" => Some(intrinsic_yggdrasil_seed),
+        "sys.yggdrasil.cycle" => Some(intrinsic_yggdrasil_cycle),
+        "sys.yggdrasil.harvest" => Some(intrinsic_yggdrasil_harvest),
+        "sys.yggdrasil.evolve" => Some(intrinsic_yggdrasil_evolve),
+        "sys.yggdrasil.collective_intelligence" => Some(intrinsic_yggdrasil_ask),
+        "sys.yggdrasil.metrics" => Some(intrinsic_yggdrasil_metrics),
+
         _ => None,
     }
 }
@@ -759,6 +925,12 @@ pub fn all_cognitive_names() -> Vec<&'static str> {
         "sys.desktop.sleep",
         "sys.desktop.health",
         "sys.desktop.storage",
+        "sys.yggdrasil.seed",
+        "sys.yggdrasil.cycle",
+        "sys.yggdrasil.harvest",
+        "sys.yggdrasil.evolve",
+        "sys.yggdrasil.collective_intelligence",
+        "sys.yggdrasil.metrics",
     ]
 }
 
