@@ -1,0 +1,91 @@
+// Ark Standard Library: Memory (CSNP + Wasserstein Transport)
+// (c) 2026 Sovereign Systems
+//
+// Coherent State Network Protocol — replaces traditional context windows.
+// - Fixed-size memory buffer with Kalman-like identity evolution
+// - Wasserstein-based memory eviction (optimal transport)
+// - Merkle integrity chain for tamper detection
+// - Trinary undo functionality
+//
+// Requires: Cognitive Core (core/src/csnp.rs, wasserstein.rs)
+
+// --- CSNP Memory Operations ---
+
+// update(text: String, embedding: List[Number]) -> Struct
+// Store a memory with its embedding vector.
+// Returns: { size: Int, identity_norm: String }
+func memory_update(text, embedding) { return sys.memory.update(text, embedding) }
+
+// context() -> String
+// Retrieve current coherent context with Merkle integrity verification.
+func memory_context() { return sys.memory.context() }
+
+// undo() -> Boolean
+// Trinary undo: reverse last memory operation.
+func memory_undo() { return sys.memory.undo() }
+
+// export_state() -> Struct
+// Export CSNP state summary.
+// Returns: { merkle_root, memory_count, identity_norm, protocol }
+func memory_export() { return sys.memory.export() }
+
+// consolidate() -> Nil
+// Preemptive compression at 80% capacity.
+func memory_consolidate() { return sys.memory.consolidate() }
+
+// --- Wasserstein Transport ---
+
+// transport_mass(query: List, bank: List, n: Int, dim: Int) -> List[String]
+// Compute Wasserstein transport mass scores for memory eviction.
+// query: flattened query embedding (1 x dim)
+// bank: flattened memory bank embeddings (n x dim)
+// n: number of memories in bank
+// dim: embedding dimension
+func memory_transport_mass(query, bank, n, dim) {
+    return sys.memory.transport_mass(query, bank, n, dim)
+}
+
+// --- MemoryManager Class ---
+// Convenience class wrapping CSNP operations.
+
+class MemoryManager {
+    func new() {
+        mm := MemoryManager()
+        mm._update_count := 0
+        return mm
+    }
+
+    func store(text, embedding) {
+        result := sys.memory.update(text, embedding)
+        this._update_count := this._update_count + 1
+        return result
+    }
+
+    func recall() {
+        return sys.memory.context()
+    }
+
+    func undo() {
+        return sys.memory.undo()
+    }
+
+    func status() {
+        return sys.memory.export()
+    }
+
+    func update_count() {
+        return this._update_count
+    }
+}
+
+// --- Module Namespace ---
+
+memory := {
+    update: memory_update,
+    context: memory_context,
+    undo: memory_undo,
+    export_state: memory_export,
+    consolidate: memory_consolidate,
+    transport_mass: memory_transport_mass,
+    MemoryManager: MemoryManager
+}

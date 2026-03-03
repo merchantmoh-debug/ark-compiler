@@ -256,16 +256,22 @@ The proof bundle includes source hashes, MAST roots, 15 quality gate scores, a M
 
 ## Data Integrity (GCD Kernel)
 
-The `gcd` standard library module implements the Tier-1 Kernel from Clement Paulus's [Generative Collapse Dynamics](https://doi.org/10.5281/zenodo.18819238) framework. It uses the AM-GM inequality to detect weak data channels hidden by healthy-looking averages:
+The `gcd` standard library module implements the kernel from Clement Paulus's [Generative Collapse Dynamics](https://doi.org/10.5281/zenodo.18819238) framework. It uses the AM-GM inequality to detect weak data channels hidden by healthy-looking averages:
+
+- **Tier-1 Kernel** {ω, F, S, C, τ_R, κ, IC} — the reserved canonical outputs
+- **Tier-2 Diagnostics** {Δ, ρ} — descriptive quantities derived from the kernel
 
 ```ark
 import lib.std.gcd
 
 // Halt if the gap between arithmetic and geometric mean exceeds threshold
+// (audit_dataset is an ArkLang policy layer built on the Tier-2 diagnostic Δ)
 gcd.audit_dataset(training_features, weights, 2000)
 ```
 
 The `Censored` type is enforced at the language level -- any arithmetic on missing data raises `CensoredAccessError`. Missing data cannot be silently averaged away.
+
+Contract freezing via `create_contract()` binds all measurement parameters (adapter, epsilon, weights, metric, tolerance, normalization bounds, OOR policy, missingness policy, decorrelation threshold) into a single SHA-256 RunID. Two runs are comparable only if their RunIDs match.
 
 > **Credit:** GCD/UMCP theory by [Clement Paulus](https://orcid.org/0009-0000-6069-8234) (CC BY 4.0).
 

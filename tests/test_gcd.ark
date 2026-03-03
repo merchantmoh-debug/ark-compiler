@@ -75,11 +75,14 @@ print("  Weak: F=" + f_w + " IC=" + ic_w + " delta=" + delta_w + " rho=" + rho_w
 result := gcd.evaluate(trace_weak, weights_equal2)
 print("  Full Kernel: F=" + result.F + " omega=" + result.omega + " IC=" + result.IC + " kappa=" + result.kappa + " delta=" + result.delta + " rho=" + result.rho)
 
-// --- Test 4: Contract Freezing ---
+// --- Test 4: Contract Freezing (Expanded RunID) ---
 
-contract_a := gcd.create_contract("linear", 10, weights_equal2, "fidelity", 100)
-contract_b := gcd.create_contract("linear", 10, weights_equal2, "fidelity", 100)
-contract_c := gcd.create_contract("log", 10, weights_equal2, "fidelity", 100)
+// Full 9-parameter contract: adapter, epsilon, weights, metric, tolerance,
+// bounds, oor_policy, miss_policy, decorr_threshold
+bounds_a := [0, 10000]
+contract_a := gcd.create_contract("linear", 10, weights_equal2, "fidelity", 100, bounds_a, "reject", "censor", 9000)
+contract_b := gcd.create_contract("linear", 10, weights_equal2, "fidelity", 100, bounds_a, "reject", "censor", 9000)
+contract_c := gcd.create_contract("log", 10, weights_equal2, "fidelity", 100, bounds_a, "reject", "censor", 9000)
 
 if gcd.is_comparable(contract_a, contract_b) {
     print("PASS: Identical contracts are comparable")
@@ -93,5 +96,37 @@ if gcd.is_comparable(contract_a, contract_c) == false {
     print("FAIL: Different adapters should not be comparable")
 }
 
+// --- Test 5: Different bounds break RunID ---
+
+bounds_b := [100, 9500]
+contract_d := gcd.create_contract("linear", 10, weights_equal2, "fidelity", 100, bounds_b, "reject", "censor", 9000)
+
+if gcd.is_comparable(contract_a, contract_d) == false {
+    print("PASS: Different normalization bounds are not comparable")
+} else {
+    print("FAIL: Different bounds should not be comparable")
+}
+
+// --- Test 6: Different OOR policy breaks RunID ---
+
+contract_e := gcd.create_contract("linear", 10, weights_equal2, "fidelity", 100, bounds_a, "clamp", "censor", 9000)
+
+if gcd.is_comparable(contract_a, contract_e) == false {
+    print("PASS: Different OOR policies are not comparable")
+} else {
+    print("FAIL: Different OOR policies should not be comparable")
+}
+
+// --- Test 7: Different decorrelation threshold breaks RunID ---
+
+contract_f := gcd.create_contract("linear", 10, weights_equal2, "fidelity", 100, bounds_a, "reject", "censor", 8000)
+
+if gcd.is_comparable(contract_a, contract_f) == false {
+    print("PASS: Different decorrelation thresholds are not comparable")
+} else {
+    print("FAIL: Different decorrelation thresholds should not be comparable")
+}
+
 print("")
 print("=== GCD Test Suite Complete ===")
+

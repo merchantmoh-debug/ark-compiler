@@ -393,15 +393,19 @@ This is not a hypothetical. This is the **fundamental failure mode** of every da
 
 ### 2. The Ark Solution: The GCD Kernel (Built-In Polygraph)
 
-Ark ships with a **built-in mathematical lie detector** -- the `gcd` standard library module, implementing the Tier-1 Kernel from Clement Paulus's [Generative Collapse Dynamics](https://doi.org/10.5281/zenodo.18819238) framework.
+Ark ships with a **built-in mathematical lie detector** -- the `gcd` standard library module, implementing the kernel from Clement Paulus's [Generative Collapse Dynamics](https://doi.org/10.5281/zenodo.18819238) framework.
 
 The kernel compares two numbers:
-* **F (Fidelity):** The arithmetic mean. What the system *claims* is happening.
-* **IC (Integrity Composite):** The geometric mean. What *actually survives* when you multiply everything together.
+* **F (Fidelity):** The arithmetic mean. What the system *claims* is happening. *(Tier-1 Kernel)*
+* **IC (Integrity Composite):** The geometric mean. What *actually survives* when you multiply everything together. *(Tier-1 Kernel)*
 
-The gap between them (Δ = F - IC) is **mathematically guaranteed to be ≥ 0** by the AM-GM inequality. When the gap is large, something is hiding. The bigger the gap, the bigger the fraud.
+The gap between them (Δ = F - IC) is a **Tier-2 diagnostic** -- a descriptive quantity that is **mathematically guaranteed to be ≥ 0** by the AM-GM inequality. When the gap is large, something is hiding. The bigger the gap, the bigger the fraud.
+
+The reserved Tier-1 kernel outputs are {ω, F, S, C, τ_R, κ, IC}. The derived diagnostics {Δ, ρ} are Tier-2 -- they describe the kernel's state but are not themselves canonical gates.
 
 ### 3. The Kill Switch: `audit_dataset()`
+
+> **Note:** `audit_dataset()` is an **ArkLang execution policy** built on top of the Tier-2 diagnostic Δ. In the GCD canon, Δ is a descriptive quantity that must not be used as a gate unless promoted via an explicit seam. In ArkLang's autonomous execution environment -- where there is no human in the loop to read a diagnostic log -- we bind the diagnostic to a system panic. The framework observes; the compiler executes.
 
 ```ark
 import lib.std.gcd

@@ -1,0 +1,77 @@
+// Ark Standard Library: Nervous System (The Virtual Nervous System)
+// (c) 2026 Sovereign Systems
+//
+// Provides native nervous system capabilities:
+// - SignalGate: Analyze input signals (entropy, urgency, threat)
+// - VetoCircuit: 4-tier ethical/safety veto hierarchy
+// - Proprioception: Self-audit of generated output
+//
+// Requires: Cognitive Core (core/src/signal_gate.rs, veto_circuit.rs, proprioception.rs)
+
+// --- Signal Analysis ---
+
+// analyze(text: String) -> Struct
+// Analyzes input text and returns signal metrics + execution mode.
+// Returns: { entropy, urgency, threat, challenge, sentiment, mode, timestamp }
+func nervous_analyze(text) { return sys.nervous.analyze(text) }
+
+// --- Veto Circuit ---
+
+// veto(text: String) -> Struct
+// Evaluates text through 4-tier veto: Threat > Heart > Code > Quality.
+// Returns: { authorized: Bool, reason: String, tier: String, reframed: String|Nil }
+func nervous_veto(text) { return sys.nervous.veto(text) }
+
+// --- Proprioception ---
+
+// audit(response: String) -> Struct
+// Self-audit of AI-generated output.
+// Returns: { confidence, hallucination_risk, regenerate, fatigue, battery_level, executable, cited }
+func nervous_audit(response) { return sys.nervous.audit(response) }
+
+// --- NervousSystem Class ---
+// Full pipeline: analyze → veto → process → audit
+
+class NervousSystem {
+    func new() {
+        ns := NervousSystem()
+        ns._last_signal := nil
+        ns._last_verdict := nil
+        ns._last_audit := nil
+        return ns
+    }
+
+    // Full pipeline: analyze input, check veto, return result
+    func process(text) {
+        signal := sys.nervous.analyze(text)
+        this._last_signal := signal
+        verdict := sys.nervous.veto(text)
+        this._last_verdict := verdict
+        return verdict
+    }
+
+    // Audit a generated response
+    func audit_response(response) {
+        audit := sys.nervous.audit(response)
+        this._last_audit := audit
+        return audit
+    }
+
+    // Get last signal analysis
+    func last_signal() { return this._last_signal }
+
+    // Get last veto verdict
+    func last_verdict() { return this._last_verdict }
+
+    // Get last audit result
+    func last_audit() { return this._last_audit }
+}
+
+// --- Module Namespace ---
+
+nervous := {
+    analyze: nervous_analyze,
+    veto: nervous_veto,
+    audit: nervous_audit,
+    NervousSystem: NervousSystem
+}

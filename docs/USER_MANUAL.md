@@ -760,7 +760,7 @@ Ark ships with **16 standard library modules**. Import them with `import lib.std
 
 ## 18.5. GCD / Data Integrity
 
-The `gcd` module implements the [Generative Collapse Dynamics](https://doi.org/10.5281/zenodo.18819238) (GCD/UMCP v2.1.3) Tier-1 kernel. It detects hidden structural failures in multi-channel data using the **AM-GM inequality** -- the arithmetic mean hides dying channels, the geometric mean does not.
+The `gcd` module implements the [Generative Collapse Dynamics](https://doi.org/10.5281/zenodo.18819238) (GCD/UMCP v2.1.3) kernel. It detects hidden structural failures in multi-channel data using the **AM-GM inequality** -- the arithmetic mean hides dying channels, the geometric mean does not.
 
 ```ark
 import lib.std.gcd
@@ -768,23 +768,37 @@ import lib.std.gcd
 
 > **Convention:** All values use Ark's fixed-point integer convention -- multiply by 10000. So `0.50` = `5000`, `1.0` = `10000`. Weights must sum to `10000`.
 
-### Function Reference
+### Tier-1 Kernel Functions
+
+The reserved Tier-1 kernel outputs: **{ω, F, S, C, τ_R, κ, IC}**.
 
 | Function | Description |
 | --- | --- |
 | `gcd.fidelity(trace, weights)` | Weighted arithmetic mean (F) |
 | `gcd.drift(trace, weights)` | 1 - F (complement/drift ω) |
-| `gcd.log_integrity(trace, weights)` | Weighted geometric mean via log-space (IC) |
-| `gcd.integrity_composite(trace, weights)` | Alias for `log_integrity` |
-| `gcd.heterogeneity_gap(F, IC)` | Δ = F - IC (the AM-GM gap) |
-| `gcd.coherence_efficiency(F, IC)` | ρ = IC / F (1.0 = perfect coherence) |
-| `gcd.entropy(trace, weights)` | Shannon entropy S |
-| `gcd.curvature(trace, weights)` | Second-order curvature κ |
-| `gcd.create_contract(adapter, epsilon, weights, metric, tolerance)` | Freeze params into SHA-256 RunID |
+| `gcd.log_integrity(trace, weights)` | Weighted log-integrity κ (log-space geometric mean) |
+| `gcd.integrity_composite(trace, weights)` | exp(κ) = weighted geometric mean (IC). AM-GM guarantees IC ≤ F |
+| `gcd.entropy(trace, weights)` | Bernoulli-field entropy functional S(Ψ). **Not** Shannon entropy -- any thermodynamic interpretation is a Tier-2 overlay |
+| `gcd.curvature(trace)` | Normalized population standard deviation κ |
+
+### Tier-2 Diagnostic Functions
+
+Tier-2 quantities are descriptive and **must not** be used as regime or weld gates unless promoted via an explicit seam and a new frozen run.
+
+| Function | Description |
+| --- | --- |
+| `gcd.heterogeneity_gap(trace, weights)` | Δ = F - IC (the AM-GM gap). Always ≥ 0 |
+| `gcd.coherence_efficiency(trace, weights)` | ρ = IC / F (1.0 = perfect coherence) |
+
+### Contract & Evaluation
+
+| Function | Description |
+| --- | --- |
+| `gcd.create_contract(adapter, epsilon, weights, metric, tolerance, bounds, oor_policy, miss_policy, decorr_threshold)` | Freeze **all** measurement parameters into a SHA-256 RunID. Includes per-channel bounds, OOR policy, missingness policy, and decorrelation threshold |
 | `gcd.is_comparable(contract_a, contract_b)` | Check if two contracts share the same RunID |
-| `gcd.evaluate(trace, weights)` | Full kernel: returns `{F, omega, IC, kappa, delta, rho}` |
-| `gcd.audit_dataset(trace, weights, max_delta)` | Evaluate + **halt** if Δ > threshold |
-| `gcd.decorrelate(trace, weights, threshold)` | Merge correlated channels (Covariance Trap fix) |
+| `gcd.evaluate(trace, weights)` | Full kernel: Tier-1 `{F, omega, IC, kappa, S, C}` + Tier-2 `{delta, rho}` |
+| `gcd.audit_dataset(trace, weights, max_delta)` | Evaluate + **halt** if Δ > threshold (**ArkLang policy layer**, not part of the GCD canon) |
+| `gcd.decorrelate(trace, weights, threshold)` | Merge correlated channels (Covariance Trap fix). Tier-0 adapter operation |
 | `gcd.normalize(trace, epsilon)` | Clip values to `[ε, 1-ε]` |
 
 ### Basic Usage
@@ -803,6 +817,8 @@ print("F=" + ledger.F + " IC=" + ledger.IC + " delta=" + ledger.delta)
 
 ### Epistemic Firewall (Veto)
 
+> **Note:** `audit_dataset()` is an **ArkLang execution policy** built on top of the Tier-2 diagnostic Δ. In the GCD canon, Δ is a descriptive quantity. In ArkLang's autonomous execution environment, developers can bind it to a system halt -- the software equivalent of a thermal fuse.
+
 ```ark
 // Halt the program if delta exceeds 20% (2000 in fixed-point)
 gcd.audit_dataset(trace, weights, 2000)
@@ -812,12 +828,15 @@ gcd.audit_dataset(trace, weights, 2000)
 ### Contract Freezing
 
 ```ark
-// Two results are comparable ONLY if they share the same contract
-c1 := gcd.create_contract("pipeline_v1", 100, weights, "accuracy", 500)
-c2 := gcd.create_contract("pipeline_v1", 100, weights, "accuracy", 500)
+// Two results are comparable ONLY if they share the same contract.
+// The RunID freezes ALL measurement parameters: adapter, epsilon, weights,
+// metric, tolerance, bounds, OOR policy, missingness policy, decorr threshold.
+bounds := [0, 10000]
+c1 := gcd.create_contract("pipeline_v1", 100, weights, "accuracy", 500, bounds, "reject", "censor", 9000)
+c2 := gcd.create_contract("pipeline_v1", 100, weights, "accuracy", 500, bounds, "reject", "censor", 9000)
 assert(gcd.is_comparable(c1, c2) == true)
 
-c3 := gcd.create_contract("pipeline_v2", 100, weights, "accuracy", 500)
+c3 := gcd.create_contract("pipeline_v2", 100, weights, "accuracy", 500, bounds, "reject", "censor", 9000)
 assert(gcd.is_comparable(c1, c3) == false)  // Different adapter = not comparable
 ```
 
@@ -827,6 +846,9 @@ assert(gcd.is_comparable(c1, c3) == false)  // Different adapter = not comparabl
 // If channels are correlated (measuring the same thing),
 // they double-count penalties in the geometric mean.
 // decorrelate() merges them before kernel evaluation.
+// NOTE: Whether decorrelation is applied (and with what threshold)
+// changes the measured object. The threshold must be frozen into
+// the RunID via create_contract()'s decorr_threshold parameter.
 result := gcd.decorrelate(trace, weights, 9000)  // threshold = 0.90 correlation
 // result.trace = cleaned trace
 // result.weights = adjusted weights
@@ -840,6 +862,7 @@ When data is *missing* (not zero -- missing), Ark represents it as a `Censored` 
 You must explicitly handle missing data via pattern matching or guard checks before performing arithmetic.
 
 > **Reference:** Theory by Clement Paulus ([DOI: 10.5281/zenodo.18819238](https://doi.org/10.5281/zenodo.18819238), CC BY 4.0).
+
 
 ---
 

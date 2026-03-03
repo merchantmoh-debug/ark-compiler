@@ -1,0 +1,128 @@
+// Ark Standard Library: Sovereign Agent (The Crown Jewel)
+// (c) 2026 Sovereign Systems
+//
+// Composes ALL cognitive modules into a production agent pipeline:
+//
+//   Input → SignalGate → VetoCircuit → OIS Budget →
+//           LLM → Proprioception → CSNP Memory → Output
+//
+// The SovereignAgent class handles the full turn lifecycle including:
+// - Automatic signal analysis and veto checking
+// - OIS budget management and velocity assignment
+// - Prompt enrichment with context and persona
+// - Proprioceptive audit with confidence-based regeneration
+// - CSNP memory storage for persistent identity
+//
+// Requires: std/ai, cognitive core modules (Phase 1+2+3)
+
+// --- Low-Level Pipeline Access ---
+
+// preprocess(text: String) -> Struct
+// Run input through SignalGate → VetoCircuit → OIS → Velocity.
+// Returns: { stage: "ready"|"vetoed"|"depleted", prompt, mode, entropy, ... }
+func agent_preprocess(text) { return sys.agent.preprocess(text) }
+
+// postprocess(response: String) -> Struct
+// Run LLM response through proprioceptive audit.
+// Returns: { accepted, regenerate, confidence, ois_remaining, hallucination_risk }
+func agent_postprocess(response) { return sys.agent.postprocess(response) }
+
+// config(key: String, value: String) -> Struct
+// Update pipeline configuration.
+// Keys: "max_regenerations", "confidence_threshold", "auto_consolidate", "persona"
+func agent_config(key, value) { return sys.agent.config(key, value) }
+
+// --- SovereignAgent Class ---
+// Full agent pipeline with turn lifecycle.
+
+class SovereignAgent {
+    func new(persona) {
+        agent := SovereignAgent()
+        agent.persona := persona
+        agent.max_retries := 2
+        agent.turn_count := 0
+        agent._last_stage := nil
+        agent._last_audit := nil
+
+        // Configure the pipeline persona
+        sys.agent.config("persona", persona)
+        return agent
+    }
+
+    // Main entry point — process a user input and return a response.
+    func process(input) {
+        // 1. Pre-process (signal → veto → OIS → velocity → prompt)
+        stage := sys.agent.preprocess(input)
+        this._last_stage := stage
+
+        // 2. Check stage
+        if stage.stage == "vetoed" {
+            return "⛔ VETOED: " + stage.reason + " [Tier: " + stage.tier + "]"
+        }
+        if stage.stage == "depleted" {
+            return "🛑 OIS BUDGET DEPLETED. HALT. Remaining: " + stage.remaining
+        }
+
+        // 3. LLM Call with retry loop
+        prompt := stage.prompt
+        retries := 0
+        response := ""
+        accepted := false
+
+        while retries < this.max_retries {
+            response := sys.ai.ask(prompt)
+
+            // 4. Post-process (proprioceptive audit)
+            audit := sys.agent.postprocess(response)
+            this._last_audit := audit
+
+            if audit.accepted == true {
+                accepted := true
+                retries := this.max_retries  // break
+            } else {
+                retries := retries + 1
+                // Append regeneration hint to prompt
+                prompt := prompt + "\n[REGENERATE: Previous output scored " + audit.confidence + " confidence. Improve quality.]"
+            }
+        }
+
+        // 5. Store turn in CSNP Memory
+        turn := "USER:" + input + "|AI:" + response
+        sys.memory.update(turn, [])
+
+        this.turn_count := this.turn_count + 1
+        return response
+    }
+
+    // Process without LLM call — just pre-process for inspection
+    func analyze(input) {
+        return sys.agent.preprocess(input)
+    }
+
+    // Get last preprocessing stage
+    func last_stage() { return this._last_stage }
+
+    // Get last audit result
+    func last_audit() { return this._last_audit }
+
+    // Get OIS budget status
+    func budget() { return sys.ois.budget() }
+
+    // Reset OIS budget
+    func reset_budget() { return sys.ois.reset() }
+
+    // Get CSNP memory export
+    func memory_status() { return sys.memory.export() }
+
+    // Get turn count
+    func turns() { return this.turn_count }
+}
+
+// --- Module Namespace ---
+
+sovereign := {
+    preprocess: agent_preprocess,
+    postprocess: agent_postprocess,
+    config: agent_config,
+    SovereignAgent: SovereignAgent
+}

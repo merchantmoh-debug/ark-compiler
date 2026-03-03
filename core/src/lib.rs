@@ -20,6 +20,7 @@
 
 pub mod a2a;
 pub mod adn;
+pub mod agent_pipeline;
 pub mod approval;
 pub mod ast;
 pub mod audit;
@@ -29,6 +30,8 @@ pub mod channel_router;
 pub mod channel_types;
 pub mod context_budget;
 pub mod context_overflow;
+pub mod csnp;
+pub mod desktop_ffi;
 
 pub mod blockchain;
 #[cfg(feature = "ipc")]
@@ -36,6 +39,7 @@ pub mod blockchain;
 pub mod bridge;
 pub mod bytecode;
 pub mod checker;
+pub mod cognitive_intrinsics;
 pub mod compiler;
 pub mod consensus;
 pub mod crypto;
@@ -57,8 +61,10 @@ pub mod macros;
 pub mod manifest_signing;
 pub mod metering;
 pub mod model_catalog;
+pub mod ois;
 pub mod parser;
 pub mod persistent;
+pub mod proprioception;
 pub mod provider_health;
 // pub mod repl; // Deprecated interpreter REPL
 #[cfg(test)]
@@ -68,12 +74,14 @@ pub mod routing;
 pub mod runtime;
 pub mod semantic_memory;
 pub mod shell_bleed;
+pub mod signal_gate;
 #[cfg(test)]
 pub mod snapshot_tests;
 pub mod taint;
 pub mod tool_policy;
 pub mod triggers;
 pub mod types;
+pub mod veto_circuit;
 pub mod vm;
 pub mod wasm;
 pub mod wasm_codegen;
@@ -83,5 +91,6 @@ pub mod wasm_host_imports;
 pub mod wasm_interop;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod wasm_runner;
+pub mod wasserstein;
 pub mod wit_gen;
 pub use wasm::*;

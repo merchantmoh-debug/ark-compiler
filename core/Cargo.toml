@@ -32,6 +32,7 @@ lazy_static = "1.5.0"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 ctrlc = "3.5.2"
+flate2 = "1.0"
 reqwest = { version = "=0.11.22", features = ["json", "blocking"] }
 tokio = { version = "=1.38.2", features = ["full"] }
 schannel = "=0.1.23"
@@ -43,6 +44,9 @@ ureq = { version = "2.9", default-features = false, features = [
     "native-tls",
     "json",
 ] }
+arboard = "3.4"
+sysinfo = "0.33"
+open = "5.3"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.2", features = ["js"] }

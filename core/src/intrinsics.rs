@@ -269,7 +269,8 @@ impl IntrinsicRegistry {
             "sys.wasm.drop" | "wasm.drop" | "intrinsic_wasm_drop" => {
                 Some(crate::wasm_interop::intrinsic_wasm_drop)
             }
-            _ => None,
+            // --- Cognitive Intrinsics (sys.nervous.*, sys.memory.*, sys.ois.*, sys.desktop.*) ---
+            other => crate::cognitive_intrinsics::resolve_cognitive(other),
         }
     }
 
@@ -798,6 +799,13 @@ impl IntrinsicRegistry {
             "data.from_json".to_string(),
             Value::NativeFunction(intrinsic_json_parse),
         );
+
+        // ── Cognitive Intrinsics (Phase 2: Nervous, Memory, OIS, Desktop) ──
+        for name in crate::cognitive_intrinsics::all_cognitive_names() {
+            if let Some(func) = crate::cognitive_intrinsics::resolve_cognitive(name) {
+                scope.set(name.to_string(), Value::NativeFunction(func));
+            }
+        }
     }
 }
 
@@ -1173,8 +1181,12 @@ pub fn intrinsic_add(args: Vec<Value>) -> Result<Value, RuntimeError> {
     }
 
     let mut iter = args.into_iter();
-    let left = iter.next().ok_or_else(|| RuntimeError::TypeMismatch("missing left operand".into(), Value::Unit))?;
-    let right = iter.next().ok_or_else(|| RuntimeError::TypeMismatch("missing right operand".into(), Value::Unit))?;
+    let left = iter
+        .next()
+        .ok_or_else(|| RuntimeError::TypeMismatch("missing left operand".into(), Value::Unit))?;
+    let right = iter
+        .next()
+        .ok_or_else(|| RuntimeError::TypeMismatch("missing right operand".into(), Value::Unit))?;
 
     match (left, right) {
         (Value::Integer(a), Value::Integer(b)) => Ok(Value::Integer(a + b)),
@@ -1813,7 +1825,12 @@ pub fn intrinsic_crypto_ed25519_sign(args: Vec<Value>) -> Result<Value, RuntimeE
         ));
     }
 
-    let signing_key = SigningKey::from_bytes(key_bytes.as_slice().try_into().expect("byte array conversion"));
+    let signing_key = SigningKey::from_bytes(
+        key_bytes
+            .as_slice()
+            .try_into()
+            .expect("byte array conversion"),
+    );
     let signature = signing_key.sign(msg_bytes);
 
     Ok(Value::String(hex::encode(signature.to_bytes())))
@@ -1845,12 +1862,22 @@ pub fn intrinsic_crypto_ed25519_verify(args: Vec<Value>) -> Result<Value, Runtim
         return Ok(Value::Boolean(false));
     }
 
-    let verifying_key = match VerifyingKey::from_bytes(pub_bytes.as_slice().try_into().expect("byte array conversion")) {
+    let verifying_key = match VerifyingKey::from_bytes(
+        pub_bytes
+            .as_slice()
+            .try_into()
+            .expect("byte array conversion"),
+    ) {
         Ok(k) => k,
         Err(_) => return Ok(Value::Boolean(false)),
     };
 
-    let signature = ed25519_dalek::Signature::from_bytes(sig_bytes.as_slice().try_into().expect("byte array conversion"));
+    let signature = ed25519_dalek::Signature::from_bytes(
+        sig_bytes
+            .as_slice()
+            .try_into()
+            .expect("byte array conversion"),
+    );
 
     match verifying_key.verify(msg_bytes, &signature) {
         Ok(_) => Ok(Value::Boolean(true)),
@@ -1911,7 +1938,11 @@ pub fn intrinsic_buffer_inspect(args: Vec<Value>) -> Result<Value, RuntimeError>
     if args.len() != 1 {
         return Err(RuntimeError::NotExecutable);
     }
-    match args.into_iter().next().ok_or_else(|| RuntimeError::TypeMismatch("missing argument".into(), Value::Unit))? {
+    match args
+        .into_iter()
+        .next()
+        .ok_or_else(|| RuntimeError::TypeMismatch("missing argument".into(), Value::Unit))?
+    {
         Value::Buffer(b) => {
             let ptr = b.as_ptr();
             println!("<Buffer Inspect: ptr={:p}, len={}>", ptr, b.len());
@@ -1927,8 +1958,12 @@ pub fn intrinsic_buffer_read(args: Vec<Value>) -> Result<Value, RuntimeError> {
         return Err(RuntimeError::NotExecutable);
     }
     let mut args = args;
-    let index_val = args.pop().ok_or_else(|| RuntimeError::TypeMismatch("missing argument".into(), Value::Unit))?;
-    let buf_val = args.pop().ok_or_else(|| RuntimeError::TypeMismatch("missing argument".into(), Value::Unit))?;
+    let index_val = args
+        .pop()
+        .ok_or_else(|| RuntimeError::TypeMismatch("missing argument".into(), Value::Unit))?;
+    let buf_val = args
+        .pop()
+        .ok_or_else(|| RuntimeError::TypeMismatch("missing argument".into(), Value::Unit))?;
 
     let index = match index_val {
         Value::Integer(n) => n,
@@ -1958,9 +1993,15 @@ pub fn intrinsic_buffer_write(args: Vec<Value>) -> Result<Value, RuntimeError> {
     // We need to destructure args to get ownership of Buffer
     // args is Vec<Value>.
     let mut args = args; // Allow move
-    let val_to_write = args.pop().ok_or_else(|| RuntimeError::TypeMismatch("missing argument".into(), Value::Unit))?; // value
-    let idx_val = args.pop().ok_or_else(|| RuntimeError::TypeMismatch("missing argument".into(), Value::Unit))?; // index
-    let buf_val = args.pop().ok_or_else(|| RuntimeError::TypeMismatch("missing argument".into(), Value::Unit))?; // buffer
+    let val_to_write = args
+        .pop()
+        .ok_or_else(|| RuntimeError::TypeMismatch("missing argument".into(), Value::Unit))?; // value
+    let idx_val = args
+        .pop()
+        .ok_or_else(|| RuntimeError::TypeMismatch("missing argument".into(), Value::Unit))?; // index
+    let buf_val = args
+        .pop()
+        .ok_or_else(|| RuntimeError::TypeMismatch("missing argument".into(), Value::Unit))?; // buffer
 
     let index = match idx_val {
         Value::Integer(n) => n as usize,
@@ -1994,8 +2035,12 @@ pub fn intrinsic_list_get(args: Vec<Value>) -> Result<Value, RuntimeError> {
         return Err(RuntimeError::NotExecutable);
     }
     let mut args = args;
-    let index_val = args.pop().ok_or_else(|| RuntimeError::TypeMismatch("missing argument".into(), Value::Unit))?;
-    let list_val = args.pop().ok_or_else(|| RuntimeError::TypeMismatch("missing argument".into(), Value::Unit))?;
+    let index_val = args
+        .pop()
+        .ok_or_else(|| RuntimeError::TypeMismatch("missing argument".into(), Value::Unit))?;
+    let list_val = args
+        .pop()
+        .ok_or_else(|| RuntimeError::TypeMismatch("missing argument".into(), Value::Unit))?;
 
     let index = match index_val {
         Value::Integer(n) => n,
@@ -2043,8 +2088,12 @@ pub fn intrinsic_list_append(args: Vec<Value>) -> Result<Value, RuntimeError> {
     // args: [list, item]
     // consume args
     let mut args = args;
-    let item = args.pop().ok_or_else(|| RuntimeError::TypeMismatch("missing argument".into(), Value::Unit))?;
-    let list_val = args.pop().ok_or_else(|| RuntimeError::TypeMismatch("missing argument".into(), Value::Unit))?;
+    let item = args
+        .pop()
+        .ok_or_else(|| RuntimeError::TypeMismatch("missing argument".into(), Value::Unit))?;
+    let list_val = args
+        .pop()
+        .ok_or_else(|| RuntimeError::TypeMismatch("missing argument".into(), Value::Unit))?;
 
     match list_val {
         Value::List(mut list) => {
@@ -2063,13 +2112,18 @@ pub fn intrinsic_list_pop(args: Vec<Value>) -> Result<Value, RuntimeError> {
     let mut args = args;
 
     // Check if 2 args (pop at index) or 1 arg (pop last)
-    let idx_val = if args.len() == 2 {
-        Some(args.pop().ok_or_else(|| RuntimeError::TypeMismatch("missing argument".into(), Value::Unit))?)
-    } else {
-        None
-    };
+    let idx_val =
+        if args.len() == 2 {
+            Some(args.pop().ok_or_else(|| {
+                RuntimeError::TypeMismatch("missing argument".into(), Value::Unit)
+            })?)
+        } else {
+            None
+        };
 
-    let list_val = args.pop().ok_or_else(|| RuntimeError::TypeMismatch("missing argument".into(), Value::Unit))?;
+    let list_val = args
+        .pop()
+        .ok_or_else(|| RuntimeError::TypeMismatch("missing argument".into(), Value::Unit))?;
 
     match list_val {
         Value::List(mut list) => {
@@ -2105,8 +2159,12 @@ pub fn intrinsic_list_delete(args: Vec<Value>) -> Result<Value, RuntimeError> {
         return Err(RuntimeError::NotExecutable);
     }
     let mut args = args;
-    let idx_val = args.pop().ok_or_else(|| RuntimeError::TypeMismatch("missing argument".into(), Value::Unit))?;
-    let list_val = args.pop().ok_or_else(|| RuntimeError::TypeMismatch("missing argument".into(), Value::Unit))?;
+    let idx_val = args
+        .pop()
+        .ok_or_else(|| RuntimeError::TypeMismatch("missing argument".into(), Value::Unit))?;
+    let list_val = args
+        .pop()
+        .ok_or_else(|| RuntimeError::TypeMismatch("missing argument".into(), Value::Unit))?;
 
     let index = match idx_val {
         Value::Integer(n) => n,
@@ -2130,8 +2188,12 @@ pub fn intrinsic_struct_has(args: Vec<Value>) -> Result<Value, RuntimeError> {
         return Err(RuntimeError::NotExecutable);
     }
     let mut args = args;
-    let field_val = args.pop().ok_or_else(|| RuntimeError::TypeMismatch("missing argument".into(), Value::Unit))?;
-    let struct_val = args.pop().ok_or_else(|| RuntimeError::TypeMismatch("missing argument".into(), Value::Unit))?;
+    let field_val = args
+        .pop()
+        .ok_or_else(|| RuntimeError::TypeMismatch("missing argument".into(), Value::Unit))?;
+    let struct_val = args
+        .pop()
+        .ok_or_else(|| RuntimeError::TypeMismatch("missing argument".into(), Value::Unit))?;
 
     let field = match field_val {
         Value::String(s) => s,
@@ -2160,9 +2222,15 @@ pub fn intrinsic_pow_mod(args: Vec<Value>) -> Result<Value, RuntimeError> {
     // args: [base, exp, mod]
     // args.pop() gives mod (last), then exp, then base.
     let mut args = args;
-    let mod_val = args.pop().ok_or_else(|| RuntimeError::TypeMismatch("missing argument".into(), Value::Unit))?;
-    let exp_val = args.pop().ok_or_else(|| RuntimeError::TypeMismatch("missing argument".into(), Value::Unit))?;
-    let base_val = args.pop().ok_or_else(|| RuntimeError::TypeMismatch("missing argument".into(), Value::Unit))?;
+    let mod_val = args
+        .pop()
+        .ok_or_else(|| RuntimeError::TypeMismatch("missing argument".into(), Value::Unit))?;
+    let exp_val = args
+        .pop()
+        .ok_or_else(|| RuntimeError::TypeMismatch("missing argument".into(), Value::Unit))?;
+    let base_val = args
+        .pop()
+        .ok_or_else(|| RuntimeError::TypeMismatch("missing argument".into(), Value::Unit))?;
 
     let m = match mod_val {
         Value::Integer(n) => n,
@@ -2222,7 +2290,9 @@ pub fn intrinsic_len(args: Vec<Value>) -> Result<Value, RuntimeError> {
         return Err(RuntimeError::NotExecutable);
     }
     let mut args = args;
-    let val = args.pop().ok_or_else(|| RuntimeError::TypeMismatch("missing argument".into(), Value::Unit))?;
+    let val = args
+        .pop()
+        .ok_or_else(|| RuntimeError::TypeMismatch("missing argument".into(), Value::Unit))?;
 
     let len = match &val {
         Value::String(s) => s.len() as i64,
@@ -2240,8 +2310,12 @@ pub fn intrinsic_struct_get(args: Vec<Value>) -> Result<Value, RuntimeError> {
     }
 
     let mut args = args;
-    let field_val = args.pop().ok_or_else(|| RuntimeError::TypeMismatch("missing argument".into(), Value::Unit))?;
-    let struct_val = args.pop().ok_or_else(|| RuntimeError::TypeMismatch("missing argument".into(), Value::Unit))?;
+    let field_val = args
+        .pop()
+        .ok_or_else(|| RuntimeError::TypeMismatch("missing argument".into(), Value::Unit))?;
+    let struct_val = args
+        .pop()
+        .ok_or_else(|| RuntimeError::TypeMismatch("missing argument".into(), Value::Unit))?;
 
     let field = match field_val {
         Value::String(s) => s,
@@ -2272,9 +2346,15 @@ pub fn intrinsic_list_set(args: Vec<Value>) -> Result<Value, RuntimeError> {
     }
     // args: [list, index, value]
     let mut args = args;
-    let val = args.pop().ok_or_else(|| RuntimeError::TypeMismatch("missing argument".into(), Value::Unit))?;
-    let idx_val = args.pop().ok_or_else(|| RuntimeError::TypeMismatch("missing argument".into(), Value::Unit))?;
-    let list_val = args.pop().ok_or_else(|| RuntimeError::TypeMismatch("missing argument".into(), Value::Unit))?;
+    let val = args
+        .pop()
+        .ok_or_else(|| RuntimeError::TypeMismatch("missing argument".into(), Value::Unit))?;
+    let idx_val = args
+        .pop()
+        .ok_or_else(|| RuntimeError::TypeMismatch("missing argument".into(), Value::Unit))?;
+    let list_val = args
+        .pop()
+        .ok_or_else(|| RuntimeError::TypeMismatch("missing argument".into(), Value::Unit))?;
 
     let index = match idx_val {
         Value::Integer(n) => n,
@@ -2299,9 +2379,15 @@ pub fn intrinsic_struct_set(args: Vec<Value>) -> Result<Value, RuntimeError> {
     }
 
     let mut args = args;
-    let new_val = args.pop().ok_or_else(|| RuntimeError::TypeMismatch("missing argument".into(), Value::Unit))?;
-    let field_val = args.pop().ok_or_else(|| RuntimeError::TypeMismatch("missing argument".into(), Value::Unit))?;
-    let struct_val = args.pop().ok_or_else(|| RuntimeError::TypeMismatch("missing argument".into(), Value::Unit))?;
+    let new_val = args
+        .pop()
+        .ok_or_else(|| RuntimeError::TypeMismatch("missing argument".into(), Value::Unit))?;
+    let field_val = args
+        .pop()
+        .ok_or_else(|| RuntimeError::TypeMismatch("missing argument".into(), Value::Unit))?;
+    let struct_val = args
+        .pop()
+        .ok_or_else(|| RuntimeError::TypeMismatch("missing argument".into(), Value::Unit))?;
 
     let field = match field_val {
         Value::String(s) => s,
@@ -3181,7 +3267,9 @@ pub fn intrinsic_socket_bind(args: Vec<Value>) -> Result<Value, RuntimeError> {
             .map_err(|_| RuntimeError::NotExecutable)?;
 
         let id = SOCKET_ID_COUNTER.fetch_add(1, Ordering::SeqCst);
-        let mut sockets = get_sockets().lock().map_err(|e| RuntimeError::InvalidOperation(format!("socket mutex poisoned: {}", e)))?;
+        let mut sockets = get_sockets()
+            .lock()
+            .map_err(|e| RuntimeError::InvalidOperation(format!("socket mutex poisoned: {}", e)))?;
         sockets.insert(id, SocketResource::Listener(listener));
 
         Ok(Value::Integer(id))
@@ -3211,7 +3299,9 @@ pub fn intrinsic_socket_accept(args: Vec<Value>) -> Result<Value, RuntimeError> 
         // BUT we can't easily clone TcpListener.
         // Rust TcpListener `try_clone` exists.
         let listener_clone = {
-            let sockets = get_sockets().lock().map_err(|e| RuntimeError::InvalidOperation(format!("socket mutex poisoned: {}", e)))?;
+            let sockets = get_sockets().lock().map_err(|e| {
+                RuntimeError::InvalidOperation(format!("socket mutex poisoned: {}", e))
+            })?;
             match sockets.get(&id) {
                 Some(SocketResource::Listener(l)) => {
                     l.try_clone().map_err(|_| RuntimeError::NotExecutable)?
@@ -3225,7 +3315,9 @@ pub fn intrinsic_socket_accept(args: Vec<Value>) -> Result<Value, RuntimeError> 
             .map_err(|_| RuntimeError::NotExecutable)?;
 
         let new_id = SOCKET_ID_COUNTER.fetch_add(1, Ordering::SeqCst);
-        let mut sockets = get_sockets().lock().map_err(|e| RuntimeError::InvalidOperation(format!("socket mutex poisoned: {}", e)))?;
+        let mut sockets = get_sockets()
+            .lock()
+            .map_err(|e| RuntimeError::InvalidOperation(format!("socket mutex poisoned: {}", e)))?;
         sockets.insert(new_id, SocketResource::Stream(stream));
 
         Ok(Value::Integer(new_id))
@@ -3264,7 +3356,9 @@ pub fn intrinsic_socket_connect(args: Vec<Value>) -> Result<Value, RuntimeError>
             .map_err(|_| RuntimeError::NotExecutable)?;
 
         let id = SOCKET_ID_COUNTER.fetch_add(1, Ordering::SeqCst);
-        let mut sockets = get_sockets().lock().map_err(|e| RuntimeError::InvalidOperation(format!("socket mutex poisoned: {}", e)))?;
+        let mut sockets = get_sockets()
+            .lock()
+            .map_err(|e| RuntimeError::InvalidOperation(format!("socket mutex poisoned: {}", e)))?;
         sockets.insert(id, SocketResource::Stream(stream));
 
         Ok(Value::Integer(id))
@@ -3300,7 +3394,9 @@ pub fn intrinsic_socket_send(args: Vec<Value>) -> Result<Value, RuntimeError> {
             }
         };
 
-        let mut sockets = get_sockets().lock().map_err(|e| RuntimeError::InvalidOperation(format!("socket mutex poisoned: {}", e)))?;
+        let mut sockets = get_sockets()
+            .lock()
+            .map_err(|e| RuntimeError::InvalidOperation(format!("socket mutex poisoned: {}", e)))?;
         match sockets.get_mut(&id) {
             Some(SocketResource::Stream(s)) => {
                 s.write_all(&data)
@@ -3341,7 +3437,9 @@ pub fn intrinsic_socket_recv(args: Vec<Value>) -> Result<Value, RuntimeError> {
             1024
         };
 
-        let mut sockets = get_sockets().lock().map_err(|e| RuntimeError::InvalidOperation(format!("socket mutex poisoned: {}", e)))?;
+        let mut sockets = get_sockets()
+            .lock()
+            .map_err(|e| RuntimeError::InvalidOperation(format!("socket mutex poisoned: {}", e)))?;
         match sockets.get_mut(&id) {
             Some(SocketResource::Stream(s)) => {
                 let mut buf = vec![0u8; max_bytes];
@@ -3378,7 +3476,9 @@ pub fn intrinsic_socket_close(args: Vec<Value>) -> Result<Value, RuntimeError> {
             }
         };
 
-        let mut sockets = get_sockets().lock().map_err(|e| RuntimeError::InvalidOperation(format!("socket mutex poisoned: {}", e)))?;
+        let mut sockets = get_sockets()
+            .lock()
+            .map_err(|e| RuntimeError::InvalidOperation(format!("socket mutex poisoned: {}", e)))?;
         if sockets.remove(&id).is_some() {
             Ok(Value::Boolean(true))
         } else {
@@ -3394,7 +3494,12 @@ pub fn intrinsic_thread_spawn(args: Vec<Value>) -> Result<Value, RuntimeError> {
 
     // Get Next ID
     let thread_id = {
-        let mut id_guard = NEXT_THREAD_ID.get_or_init(|| Mutex::new(1)).lock().map_err(|e| RuntimeError::InvalidOperation(format!("thread id mutex poisoned: {}", e)))?;
+        let mut id_guard = NEXT_THREAD_ID
+            .get_or_init(|| Mutex::new(1))
+            .lock()
+            .map_err(|e| {
+                RuntimeError::InvalidOperation(format!("thread id mutex poisoned: {}", e))
+            })?;
         let id = *id_guard;
         *id_guard += 1;
         id
@@ -3484,7 +3589,9 @@ pub fn intrinsic_socket_set_timeout(args: Vec<Value>) -> Result<Value, RuntimeEr
             }
         };
 
-        let sockets = get_sockets().lock().map_err(|e| RuntimeError::InvalidOperation(format!("socket mutex poisoned: {}", e)))?;
+        let sockets = get_sockets()
+            .lock()
+            .map_err(|e| RuntimeError::InvalidOperation(format!("socket mutex poisoned: {}", e)))?;
         match sockets.get(&id) {
             Some(SocketResource::Stream(s)) => {
                 let dur = if timeout_ms == 0 {
@@ -4656,26 +4763,41 @@ mod tests {
     fn test_math_pow() {
         // 2^3 = 8
         let args = vec![Value::Integer(2), Value::Integer(3)];
-        assert_eq!(intrinsic_math_pow(args).expect("unexpected failure"), Value::Integer(8));
+        assert_eq!(
+            intrinsic_math_pow(args).expect("unexpected failure"),
+            Value::Integer(8)
+        );
 
         // 10^2 = 100
         let args = vec![Value::Integer(10), Value::Integer(2)];
-        assert_eq!(intrinsic_math_pow(args).expect("unexpected failure"), Value::Integer(100));
+        assert_eq!(
+            intrinsic_math_pow(args).expect("unexpected failure"),
+            Value::Integer(100)
+        );
 
         // 2^-1 = 0 (0.5 as integer)
         let args = vec![Value::Integer(2), Value::Integer(-1)];
-        assert_eq!(intrinsic_math_pow(args).expect("unexpected failure"), Value::Integer(0));
+        assert_eq!(
+            intrinsic_math_pow(args).expect("unexpected failure"),
+            Value::Integer(0)
+        );
     }
 
     #[test]
     fn test_math_sqrt() {
         // sqrt(16) = 4
         let args = vec![Value::Integer(16)];
-        assert_eq!(intrinsic_math_sqrt(args).expect("unexpected failure"), Value::Integer(4));
+        assert_eq!(
+            intrinsic_math_sqrt(args).expect("unexpected failure"),
+            Value::Integer(4)
+        );
 
         // sqrt(10) = 3 (3.16... as integer)
         let args = vec![Value::Integer(10)];
-        assert_eq!(intrinsic_math_sqrt(args).expect("unexpected failure"), Value::Integer(3));
+        assert_eq!(
+            intrinsic_math_sqrt(args).expect("unexpected failure"),
+            Value::Integer(3)
+        );
 
         // sqrt(-1) -> Error
         let args = vec![Value::Integer(-1)];
@@ -4686,14 +4808,20 @@ mod tests {
     fn test_io_cls() {
         // Just verify it runs and returns Unit
         let args = vec![];
-        assert_eq!(intrinsic_io_cls(args).expect("unexpected failure"), Value::Unit);
+        assert_eq!(
+            intrinsic_io_cls(args).expect("unexpected failure"),
+            Value::Unit
+        );
     }
 
     #[test]
     fn test_math_trig() {
         // sin(0) = 0
         let args = vec![Value::Integer(0)];
-        assert_eq!(intrinsic_math_sin(args).expect("unexpected failure"), Value::Integer(0));
+        assert_eq!(
+            intrinsic_math_sin(args).expect("unexpected failure"),
+            Value::Integer(0)
+        );
 
         // sin(PI/2) approx 10000 (PI/2 = 1.5707... * 10000 = 15707)
         let args = vec![Value::Integer(15708)]; // 1.5708
@@ -4707,7 +4835,10 @@ mod tests {
 
         // cos(0) = 10000
         let args = vec![Value::Integer(0)];
-        assert_eq!(intrinsic_math_cos(args).expect("unexpected failure"), Value::Integer(10000));
+        assert_eq!(
+            intrinsic_math_cos(args).expect("unexpected failure"),
+            Value::Integer(10000)
+        );
 
         // tan(45deg) = tan(PI/4) = 1 (approx)
         // PI/4 = 0.78539 * 10000 = 7854

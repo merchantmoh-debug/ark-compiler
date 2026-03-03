@@ -1,0 +1,90 @@
+// Ark Standard Library: OIS (Sovereign Cognitive Frameworks)
+// (c) 2026 Sovereign Systems
+//
+// OIS Truth Budget — economic logic for reasoning.
+// - Start with 100 points. Every assumption burns capital.
+// - When budget reaches zero: HALT.
+//
+// Haiyue Microcosm — 3-trajectory simulation.
+// - Optimistic (+1), Neutral (0), Pessimistic (-1)
+// - Do not output unless the Pessimistic trajectory has been modeled.
+//
+// Velocity Physics — Turtle vs Hare execution modes.
+// - Layers 1-3 (Surface): HARE VELOCITY
+// - Layers 4-6 (Depth): TURTLE INTEGRITY
+//
+// Requires: Cognitive Core (core/src/ois.rs)
+
+// --- OIS Truth Budget ---
+
+// budget() -> Struct
+// Get current OIS Truth Budget status.
+// Returns: { remaining: Int, total: Int, depleted: Bool, status: String }
+func ois_budget() { return sys.ois.budget() }
+
+// deduct(cost_type: String) -> Struct
+// Deduct from OIS budget.
+// Valid types: "assumption", "context", "correlation", "emotional",
+//   "undecidable", "high_entropy", "veto", "search_timeout",
+//   "code_failure", "dangerous_code", "hallucination", "regeneration"
+// Returns: { remaining: Int, cost: Int, depleted: Bool }
+func ois_deduct(cost_type) { return sys.ois.deduct(cost_type) }
+
+// reset() -> Nil
+// Reset OIS budget to 100.
+func ois_reset() { return sys.ois.reset() }
+
+// --- Haiyue Microcosm ---
+
+// haiyue(context: String) -> Struct
+// Generate 3-trajectory simulation prompts.
+// Returns: { optimistic: String, neutral: String, pessimistic: String }
+func ois_haiyue(context) { return sys.ois.haiyue(context) }
+
+// --- Velocity Physics ---
+
+// velocity(mode: String) -> Struct
+// Get velocity config for an execution mode.
+// Modes: "warspeed", "turtle", "deep_research", "architect_prime"
+// Returns: { timeout_secs, search_depth, max_retries, system_suffix, mode }
+func ois_velocity(mode) { return sys.ois.velocity(mode) }
+
+// --- TruthBudget Class ---
+// Stateful wrapper with convenience methods.
+
+class TruthBudget {
+    func new() {
+        tb := TruthBudget()
+        sys.ois.reset()
+        return tb
+    }
+
+    func check() {
+        b := sys.ois.budget()
+        return b
+    }
+
+    func spend(cost_type) {
+        return sys.ois.deduct(cost_type)
+    }
+
+    func is_sound() {
+        b := sys.ois.budget()
+        return b.remaining > 0
+    }
+
+    func reset() {
+        sys.ois.reset()
+    }
+}
+
+// --- Module Namespace ---
+
+ois := {
+    budget: ois_budget,
+    deduct: ois_deduct,
+    reset: ois_reset,
+    haiyue: ois_haiyue,
+    velocity: ois_velocity,
+    TruthBudget: TruthBudget
+}

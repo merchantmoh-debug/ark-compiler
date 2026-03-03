@@ -1,0 +1,86 @@
+// Ark Standard Library: Desktop (Sovereign Desktop Agent Toolkit)
+// (c) 2026 Sovereign Systems
+//
+// Desktop tool registry with capability gating.
+// 22 tools from Remember-Me-AI's desktop agent suite.
+//
+// STATUS: API SURFACE DEFINED — Phase 4 FFI bindings required for implementation.
+// All functions will currently return an error indicating FFI is not yet available.
+//
+// Requires: Phase 4 FFI (OS-level desktop automation bindings)
+
+// --- Screen & Visual ---
+
+func desktop_screenshot() { return sys.desktop.screenshot() }
+func desktop_webcam() { return sys.desktop.webcam() }
+
+// --- Application Control ---
+
+func desktop_open_app(name) { return sys.desktop.open_app(name) }
+func desktop_close_app(name) { return sys.desktop.close_app(name) }
+
+// --- System Control ---
+
+func desktop_volume(level) { return sys.desktop.volume(level) }
+func desktop_brightness(level) { return sys.desktop.brightness(level) }
+func desktop_shutdown() { return sys.desktop.shutdown() }
+func desktop_restart() { return sys.desktop.restart() }
+func desktop_sleep() { return sys.desktop.sleep() }
+
+// --- System Info ---
+
+func desktop_health() { return sys.desktop.health() }
+func desktop_storage() { return sys.desktop.storage() }
+
+// --- Media ---
+
+func desktop_audio_record() { return sys.desktop.audio_record() }
+func desktop_media_play() { return sys.desktop.media_play() }
+func desktop_media_pause() { return sys.desktop.media_pause() }
+func desktop_media_next() { return sys.desktop.media_next() }
+
+// --- Browser ---
+
+func desktop_browser_open(url) { return sys.desktop.browser_open(url) }
+
+// --- Productivity ---
+
+func desktop_caffeine() { return sys.desktop.caffeine() }
+func desktop_focus_mode() { return sys.desktop.focus_mode() }
+
+// --- Clipboard ---
+
+func desktop_clipboard_read() { return sys.desktop.clipboard_read() }
+func desktop_clipboard_write(text) { return sys.desktop.clipboard_write(text) }
+
+// --- Maintenance ---
+
+func desktop_recycle_bin() { return sys.desktop.recycle_bin() }
+func desktop_panic() { return sys.desktop.panic() }
+
+// --- Module Namespace ---
+
+desktop := {
+    screenshot: desktop_screenshot,
+    webcam: desktop_webcam,
+    open_app: desktop_open_app,
+    close_app: desktop_close_app,
+    volume: desktop_volume,
+    brightness: desktop_brightness,
+    shutdown: desktop_shutdown,
+    restart: desktop_restart,
+    sleep: desktop_sleep,
+    health: desktop_health,
+    storage: desktop_storage,
+    audio_record: desktop_audio_record,
+    media_play: desktop_media_play,
+    media_pause: desktop_media_pause,
+    media_next: desktop_media_next,
+    browser_open: desktop_browser_open,
+    caffeine: desktop_caffeine,
+    focus_mode: desktop_focus_mode,
+    clipboard_read: desktop_clipboard_read,
+    clipboard_write: desktop_clipboard_write,
+    recycle_bin: desktop_recycle_bin,
+    panic: desktop_panic
+}
